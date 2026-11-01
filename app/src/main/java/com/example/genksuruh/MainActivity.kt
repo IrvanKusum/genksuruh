@@ -5,7 +5,9 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Scaffold
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.example.genksuruh.core.theme.GenkSuruhTheme
 import com.example.genksuruh.navigation.AppBottomBar
@@ -17,8 +19,13 @@ class MainActivity : ComponentActivity() {
         setContent {
             GenkSuruhTheme {
                 val navController = rememberNavController()
+                val backStackEntry by navController.currentBackStackEntryAsState()
+                val currentRoute: String? = backStackEntry?.destination?.route
                 Scaffold(
-                    bottomBar = { AppBottomBar(navController) }
+                    bottomBar = {
+                        val bottomBarRoutes = null
+                        if (null == true ) AppBottomBar(navController)
+                    }
                 ) { innerPadding ->
                     AppNavGraph(
                         navController = navController,

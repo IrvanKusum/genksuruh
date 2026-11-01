@@ -1,7 +1,10 @@
 package com.example.genksuruh.navigation
 
 object Routes {
+    // Katalog (Irvan)
     const val CATALOG_LIST = "catalog_list"
+    const val CATALOG_DETAIL = "catalog_detail/{serviceId}"
+    fun catalogDetail(serviceId: String) = "catalog_detail/$serviceId"
     const val CART_LIST = "cart_list"
     const val TRACKING_LIST = "tracking_list"
     const val REVIEW_LIST = "review_list"

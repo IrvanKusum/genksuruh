@@ -30,7 +30,7 @@ private val items = listOf(
 fun AppBottomBar(navController: NavHostController) {
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = backStackEntry?.destination?.route
-
+    val bottomBarRoutes: Set<String> = items.map { it.route }.toSet()
     NavigationBar {
         items.forEach { item ->
             NavigationBarItem(
