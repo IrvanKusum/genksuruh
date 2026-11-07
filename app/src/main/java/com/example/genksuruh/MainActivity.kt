@@ -15,6 +15,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.example.genksuruh.core.auth.AccountRole
+import com.example.genksuruh.core.auth.LocalAccountName
 import com.example.genksuruh.core.auth.LocalAccountRole
 import com.example.genksuruh.core.theme.GenkSuruhTheme
 import com.example.genksuruh.feature.auth.LoginScreen
@@ -36,7 +37,7 @@ class MainActivity : ComponentActivity() {
                     LoginScreen()
                 } else {
                     // key(id): ganti akun -> NavController baru, riwayat navigasi bersih
-                    key(current.id) { MainApp(role = current.role) }
+                    key(current.id) { MainApp(role = current.role, userName = current.name) }
                 }
             }
         }
@@ -44,12 +45,15 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-private fun MainApp(role: AccountRole) {
+private fun MainApp(role: AccountRole, userName: String) {
     val navController = rememberNavController()
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = backStackEntry?.destination?.route
 
-    CompositionLocalProvider(LocalAccountRole provides role) {
+    CompositionLocalProvider(
+        LocalAccountRole provides role,
+        LocalAccountName provides userName
+    ) {
         Scaffold(
             bottomBar = {
                 if (currentRoute in bottomBarRoutes(role)) AppBottomBar(navController, role)

@@ -30,6 +30,7 @@ import coil.compose.AsyncImage
 import com.example.genksuruh.core.model.Service
 import com.example.genksuruh.core.theme.Secondary500
 import com.example.genksuruh.core.util.toRupiah
+import com.example.genksuruh.feature.profile.ProfileEntryButton
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -37,6 +38,7 @@ fun AdminServicesScreen(
     onAddClick: () -> Unit,
     onEditClick: (String) -> Unit,
     onServiceClick: (String) -> Unit,
+    onProfileClick: () -> Unit,
     viewModel: AdminServicesViewModel = viewModel()
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
@@ -63,6 +65,10 @@ fun AdminServicesScreen(
                             )
                         }
                     }
+                },
+                actions = {
+                    ProfileEntryButton(onClick = onProfileClick)
+                    Spacer(Modifier.width(16.dp))
                 }
             )
         },

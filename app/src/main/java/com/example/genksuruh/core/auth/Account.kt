@@ -23,3 +23,5 @@ data class Account(
 //   val role = LocalAccountRole.current
 //   if (role == AccountRole.ADMIN) { ...tombol tambah/hapus... }
 val LocalAccountRole = staticCompositionLocalOf { AccountRole.USER }
+// Nama akun yang sedang login, untuk sapaan di layar mana pun
+val LocalAccountName = staticCompositionLocalOf { "" }

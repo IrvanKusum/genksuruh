@@ -41,6 +41,7 @@ import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
@@ -57,7 +58,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.genksuruh.core.auth.LocalAccountName
 import com.example.genksuruh.core.theme.Secondary500
+import com.example.genksuruh.feature.profile.ProfileEntryButton
 
 private val TextMuted = Color(0xFF64748B)
 
@@ -67,6 +70,7 @@ fun CatalogScreen(
     onServiceClick: (String) -> Unit = {},
     onAddClick: () -> Unit = {},
     showAddButton: Boolean = true,
+    onProfileClick: () -> Unit = {},
     viewModel: CatalogViewModel = viewModel()
 ) {
     val state by viewModel.uiState.collectAsState()
@@ -78,12 +82,14 @@ fun CatalogScreen(
     ) {
         LazyVerticalGrid(
             columns = GridCells.Fixed(2),
-            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 96.dp),
+            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 96.dp),
             horizontalArrangement = Arrangement.spacedBy(12.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
             modifier = Modifier.fillMaxSize()
         ) {
-            item(span = { GridItemSpan(maxLineSpan) }) { CatalogHeader() }
+            item(span = { GridItemSpan(maxLineSpan) }) {
+                CatalogHeader(onProfileClick = onProfileClick)
+            }
 
             item(span = { GridItemSpan(maxLineSpan) }) {
                 SearchBar(query = state.query, onQueryChange = viewModel::onQueryChange)
@@ -146,50 +152,49 @@ fun CatalogScreen(
 
 
 @Composable
-private fun CatalogHeader() {
+private fun CatalogHeader(onProfileClick: () -> Unit) {
+    val firstName = LocalAccountName.current.trim().substringBefore(" ")
+
     Column {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Box(
                 modifier = Modifier
-                    .size(44.dp)
+                    .size(40.dp)
                     .clip(RoundedCornerShape(12.dp))
                     .background(MaterialTheme.colorScheme.primary),
                 contentAlignment = Alignment.Center
             ) {
-                Icon(Icons.Rounded.Bolt, null, tint = Color.White)
+                Icon(Icons.Rounded.Bolt, null, tint = Color.White, modifier = Modifier.size(22.dp))
             }
             Spacer(Modifier.size(12.dp))
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     "GENKSURUH.CO",
-                    style = MaterialTheme.typography.labelMedium,
+                    style = MaterialTheme.typography.labelSmall,
                     color = TextMuted
                 )
-                Text(
-                    "Beranda",
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.SemiBold
+                Text("Beranda", style = MaterialTheme.typography.titleLarge)
+            }
+            IconButton(onClick = {}) {
+                Icon(
+                    Icons.Rounded.Notifications,
+                    contentDescription = "Notifikasi",
+                    tint = MaterialTheme.colorScheme.onBackground
                 )
             }
-            Icon(Icons.Rounded.Notifications, "Notifikasi", tint = MaterialTheme.colorScheme.onBackground)
-            Spacer(Modifier.size(12.dp))
-            Box(
-                modifier = Modifier
-                    .size(36.dp)
-                    .clip(CircleShape)
-                    .background(MaterialTheme.colorScheme.primary),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(Icons.Rounded.Person, "Profil", tint = Color.White, modifier = Modifier.size(20.dp))
-            }
+            Spacer(Modifier.size(4.dp))
+            ProfileEntryButton(onClick = onProfileClick)
         }
-        Spacer(Modifier.height(16.dp))
-        Text("Halo, Irvan \uD83D\uDC4B", style = MaterialTheme.typography.bodyMedium, color = TextMuted)
+
+        Spacer(Modifier.height(24.dp))
+
         Text(
-            "Mau suruh apa hari ini?",
-            style = MaterialTheme.typography.headlineMedium,
-            fontWeight = FontWeight.SemiBold
+            if (firstName.isNotEmpty()) "Halo, $firstName \uD83D\uDC4B" else "Halo \uD83D\uDC4B",
+            style = MaterialTheme.typography.bodyMedium,
+            color = TextMuted
         )
+        Spacer(Modifier.height(4.dp))
+        Text("Mau suruh apa hari ini?", style = MaterialTheme.typography.headlineMedium)
     }
 }
 

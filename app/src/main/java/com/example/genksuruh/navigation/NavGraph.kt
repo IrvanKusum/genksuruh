@@ -47,7 +47,8 @@ fun AppNavGraph(
             CatalogScreen(
                 onServiceClick = { id -> navController.navigate(Routes.catalogDetail(id)) },
                 onAddClick = {},
-                showAddButton = false // pengguna tidak boleh menambah jasa
+                showAddButton = false,
+                onProfileClick = { navController.navigate(Routes.PROFILE) }
             )
         }
         composable(
@@ -79,15 +80,16 @@ fun AppNavGraph(
             AdminServicesScreen(
                 onAddClick = { navController.navigate(Routes.catalogForm()) },
                 onEditClick = { id -> navController.navigate(Routes.catalogForm(id)) },
-                onServiceClick = { id -> navController.navigate(Routes.catalogDetail(id)) }
+                onServiceClick = { id -> navController.navigate(Routes.catalogDetail(id)) },
+                onProfileClick = { navController.navigate(Routes.PROFILE) }
             )
         }
 
         // ===== Profil =====
         composable(Routes.PROFILE) {
             ProfileScreen(
-                onEditProfile = { navController.navigate(Routes.PROFILE_EDIT) },
-                onOpenPromo = { navController.navigate(Routes.PROMO_LIST) }
+                onBack = { navController.popBackStack() },
+                onEditProfile = { navController.navigate(Routes.PROFILE_EDIT) }
             )
         }
         composable(Routes.PROFILE_EDIT) {
