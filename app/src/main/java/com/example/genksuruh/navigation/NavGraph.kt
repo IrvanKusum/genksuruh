@@ -32,7 +32,9 @@ fun AppNavGraph(
         composable(Routes.TRACKING_LIST) { TrackingScreen() }
 
         // ===== Ulasan (Ahsana) =====
-        composable(Routes.REVIEW_LIST) { ReviewScreen() }
+        composable(Routes.REVIEW_LIST) {
+            ReviewScreen(onExit = { navController.popBackStack() })
+        }
 
         // ===== Favorit (Alushya) =====
         composable(Routes.FAVORITE_LIST) { FavoriteScreen() }
