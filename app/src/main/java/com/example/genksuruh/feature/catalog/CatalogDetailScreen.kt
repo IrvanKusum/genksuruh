@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -59,6 +60,9 @@ import com.example.genksuruh.core.theme.Accent500
 import com.example.genksuruh.core.theme.Secondary500
 import com.example.genksuruh.core.util.toRupiah
 import kotlinx.coroutines.launch
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.text.style.TextOverflow
+import coil.compose.AsyncImage
 
 private val TextMuted = Color(0xFF64748B)
 private val ChipGray = Color(0xFFF1F5F9)
@@ -74,6 +78,8 @@ fun CatalogDetailScreen(
     val inCart by viewModel.inCart.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
+    val scrollState = rememberScrollState()
+
 
     val data = service
     if (data == null) {
@@ -106,7 +112,7 @@ fun CatalogDetailScreen(
                 .padding(innerPadding)
                 .background(MaterialTheme.colorScheme.background)
         ) {
-            Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
+            Column(modifier = Modifier.verticalScroll(scrollState)) {
                 Box {
                     HeroImage(
                         service = data,
@@ -242,15 +248,29 @@ fun CatalogDetailScreen(
                 }
             }
 
-            // Tombol back dan favorit melayang di atas foto
+            // Bar atas: transparan di atas foto, berubah putih + judul saat di-scroll
+            val progress = (scrollState.value / 600f).coerceIn(0f, 1f)
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(16.dp),
-                horizontalArrangement = Arrangement.SpaceBetween
+                    .background(Color.White.copy(alpha = progress))
+                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
                 RoundIconButton(onClick = onBack) {
                     Icon(Icons.AutoMirrored.Rounded.ArrowBack, "Kembali")
+                }
+                if (progress > 0.9f) {
+                    Text(
+                        data.title,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f).padding(horizontal = 12.dp)
+                    )
+                } else {
+                    Spacer(Modifier.weight(1f))
                 }
                 RoundIconButton(onClick = viewModel::toggleFavorite) {
                     Icon(
@@ -266,15 +286,20 @@ fun CatalogDetailScreen(
 
 @Composable
 private fun HeroImage(service: Service, modifier: Modifier = Modifier) {
-    if (service.imageRes != null) {
-        Image(
+    when {
+        service.imageRes != null -> Image(
             painter = painterResource(service.imageRes),
             contentDescription = service.title,
             contentScale = ContentScale.Crop,
             modifier = modifier
         )
-    } else {
-        Box(
+        service.imageUrl != null -> AsyncImage(
+            model = service.imageUrl,
+            contentDescription = service.title,
+            contentScale = ContentScale.Crop,
+            modifier = modifier
+        )
+        else -> Box(
             modifier = modifier.background(MaterialTheme.colorScheme.primaryContainer),
             contentAlignment = Alignment.Center
         ) {
@@ -286,7 +311,6 @@ private fun HeroImage(service: Service, modifier: Modifier = Modifier) {
         }
     }
 }
-
 @Composable
 private fun RoundIconButton(onClick: () -> Unit, content: @Composable () -> Unit) {
     Box(
@@ -356,8 +380,11 @@ private fun ProviderCard(service: Service) {
                     Text("${service.rating}", style = MaterialTheme.typography.bodySmall)
                 }
             }
-            OutlinedButton(onClick = { /* nanti: hubungi penyedia */ }) {
-                Text("Hubungi")
+            OutlinedButton(
+                onClick = { /* nanti: hubungi penyedia */ },
+                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)
+            ) {
+                Text("Hubungi", style = MaterialTheme.typography.labelLarge)
             }
         }
     }

@@ -40,6 +40,7 @@ import com.example.genksuruh.core.model.Service
 import com.example.genksuruh.core.theme.Accent500
 import com.example.genksuruh.core.theme.Secondary500
 import com.example.genksuruh.core.util.toRupiah
+import coil.compose.AsyncImage
 
 private val TextMuted = Color(0xFF64748B)
 
@@ -155,15 +156,20 @@ private fun ServiceImage(service: Service) {
         .aspectRatio(4f / 3f)
         .clip(shape)
 
-    if (service.imageRes != null) {
-        Image(
+    when {
+        service.imageRes != null -> Image(
             painter = painterResource(service.imageRes),
             contentDescription = service.title,
             contentScale = ContentScale.Crop,
             modifier = imageModifier
         )
-    } else {
-        Box(
+        service.imageUrl != null -> AsyncImage(
+            model = service.imageUrl,
+            contentDescription = service.title,
+            contentScale = ContentScale.Crop,
+            modifier = imageModifier
+        )
+        else -> Box(
             modifier = imageModifier.background(MaterialTheme.colorScheme.primaryContainer),
             contentAlignment = Alignment.Center
         ) {

@@ -3,9 +3,9 @@ package com.example.genksuruh.navigation
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.LocalOffer
 import androidx.compose.material.icons.filled.Receipt
 import androidx.compose.material.icons.filled.ShoppingCart
-import androidx.compose.material.icons.filled.LocalOffer
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
@@ -26,11 +26,14 @@ private val items = listOf(
     BottomItem(Routes.PROMO_LIST, "Promo", Icons.Filled.LocalOffer)
 )
 
+// Di luar fungsi, supaya bisa dipakai MainActivity
+val bottomBarRoutes: Set<String> = items.map { it.route }.toSet()
+
 @Composable
 fun AppBottomBar(navController: NavHostController) {
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = backStackEntry?.destination?.route
-    val bottomBarRoutes: Set<String> = items.map { it.route }.toSet()
+
     NavigationBar {
         items.forEach { item ->
             NavigationBarItem(

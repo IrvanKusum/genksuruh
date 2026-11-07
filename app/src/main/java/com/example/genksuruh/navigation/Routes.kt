@@ -10,4 +10,7 @@ object Routes {
     const val REVIEW_LIST = "review_list"
     const val FAVORITE_LIST = "favorite_list"
     const val PROMO_LIST = "promo_list"
+    const val CATALOG_FORM = "catalog_form?serviceId={serviceId}"
+    fun catalogForm(serviceId: String? = null) =
+        if (serviceId == null) "catalog_form" else "catalog_form?serviceId=$serviceId"
 }

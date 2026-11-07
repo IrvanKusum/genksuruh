@@ -12,6 +12,7 @@ import androidx.navigation.compose.rememberNavController
 import com.example.genksuruh.core.theme.GenkSuruhTheme
 import com.example.genksuruh.navigation.AppBottomBar
 import com.example.genksuruh.navigation.AppNavGraph
+import com.example.genksuruh.navigation.bottomBarRoutes
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -20,11 +21,11 @@ class MainActivity : ComponentActivity() {
             GenkSuruhTheme {
                 val navController = rememberNavController()
                 val backStackEntry by navController.currentBackStackEntryAsState()
-                val currentRoute: String? = backStackEntry?.destination?.route
+                val currentRoute = backStackEntry?.destination?.route
+
                 Scaffold(
                     bottomBar = {
-                        val bottomBarRoutes = null
-                        if (null == true ) AppBottomBar(navController)
+                        if (currentRoute in bottomBarRoutes) AppBottomBar(navController)
                     }
                 ) { innerPadding ->
                     AppNavGraph(

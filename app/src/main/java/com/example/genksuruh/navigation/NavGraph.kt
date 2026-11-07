@@ -14,7 +14,7 @@ import com.example.genksuruh.feature.tracking.TrackingScreen
 import androidx.navigation.NavType
 import androidx.navigation.navArgument
 import com.example.genksuruh.feature.catalog.CatalogDetailScreen
-
+import com.example.genksuruh.feature.catalog.CatalogFormScreen
 @Composable
 fun AppNavGraph(
     navController: NavHostController,
@@ -28,7 +28,8 @@ fun AppNavGraph(
         // ===== Katalog (Irvan) =====
         composable(Routes.CATALOG_LIST) {
             CatalogScreen(
-                onServiceClick = { id -> navController.navigate(Routes.catalogDetail(id)) }
+                onServiceClick = { id -> navController.navigate(Routes.catalogDetail(id)) },
+                onAddClick = { navController.navigate(Routes.catalogForm()) }
             )
         }
         composable(
@@ -39,6 +40,18 @@ fun AppNavGraph(
                 onBack = { navController.popBackStack() },
                 onGoToCart = { navController.navigate(Routes.CART_LIST) }
             )
+        }
+        composable(
+            route = Routes.CATALOG_FORM,
+            arguments = listOf(
+                navArgument("serviceId") {
+                    type = NavType.StringType
+                    nullable = true
+                    defaultValue = null
+                }
+            )
+        ) {
+            CatalogFormScreen(onClose = { navController.popBackStack() })
         }
 
         // ===== Keranjang (Rasyid) =====
