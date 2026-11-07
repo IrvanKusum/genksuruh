@@ -2,7 +2,8 @@ package com.example.genksuruh.feature.catalog
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import kotlinx.coroutines.delay
+import com.example.genksuruh.core.model.Service
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -19,24 +20,36 @@ enum class PriceFilter(val label: String) {
 
 data class CatalogUiState(
     val isLoading: Boolean = true,
+    val errorMessage: String? = null,
     val query: String = "",
     val selectedCategory: String = "Semua",
     val priceFilter: PriceFilter = PriceFilter.ALL,
-    val services: List<com.example.genksuruh.core.model.Service> = emptyList()
+    val services: List<Service> = emptyList()
 ) {
-    val isEmpty: Boolean get() = !isLoading && services.isEmpty()
+    val isEmpty: Boolean get() = !isLoading && errorMessage == null && services.isEmpty()
 }
 
-class CatalogViewModel : ViewModel() {
+class CatalogViewModel(
+    private val repository: CatalogRepository = CatalogRepository
+) : ViewModel() {
 
     private val query = MutableStateFlow("")
     private val category = MutableStateFlow("Semua")
     private val priceFilter = MutableStateFlow(PriceFilter.ALL)
     private val loading = MutableStateFlow(true)
+    private val error = MutableStateFlow<String?>(null)
 
     val uiState: StateFlow<CatalogUiState> = combine(
-        CatalogRepository.services, query, category, priceFilter, loading
-    ) { all, q, c, p, isLoading ->
+        repository.services, query, category, priceFilter, loading, error
+    ) { values ->
+        @Suppress("UNCHECKED_CAST")
+        val all = values[0] as List<Service>
+        val q = values[1] as String
+        val c = values[2] as String
+        val p = values[3] as PriceFilter
+        val isLoading = values[4] as Boolean
+        val err = values[5] as String?
+
         val filtered = all.filter { s ->
             val matchQuery = q.isBlank() ||
                     s.title.contains(q, ignoreCase = true) ||
@@ -52,6 +65,7 @@ class CatalogViewModel : ViewModel() {
         }
         CatalogUiState(
             isLoading = isLoading,
+            errorMessage = err,
             query = q,
             selectedCategory = c,
             priceFilter = p,
@@ -60,9 +74,23 @@ class CatalogViewModel : ViewModel() {
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), CatalogUiState())
 
     init {
+        loadServices()
+    }
+
+    // Ambil data dari Repository (dummy sekarang, Supabase nanti)
+    fun loadServices(simulateFailure: Boolean = false) {
         viewModelScope.launch {
-            delay(800) // simulasi loading supaya skeleton terlihat
-            loading.value = false
+            loading.value = true
+            error.value = null
+            try {
+                repository.loadServices(simulateFailure)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                error.value = e.message ?: "Terjadi kesalahan"
+            } finally {
+                loading.value = false
+            }
         }
     }
 
@@ -81,6 +109,6 @@ class CatalogViewModel : ViewModel() {
     }
 
     fun toggleFavorite(id: String) {
-        viewModelScope.launch { CatalogRepository.toggleFavorite(id) }
+        viewModelScope.launch { repository.toggleFavorite(id) }
     }
 }
