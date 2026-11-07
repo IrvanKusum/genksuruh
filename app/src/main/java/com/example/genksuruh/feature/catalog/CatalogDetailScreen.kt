@@ -63,47 +63,76 @@ import kotlinx.coroutines.launch
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.text.style.TextOverflow
 import coil.compose.AsyncImage
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.ui.tooling.preview.Preview
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.example.genksuruh.core.theme.GenkSuruhTheme
 
 private val TextMuted = Color(0xFF64748B)
 private val ChipGray = Color(0xFFF1F5F9)
 
-@OptIn(ExperimentalLayoutApi::class)
+// SCREEN: menghubungkan ViewModel dengan Content
 @Composable
 fun CatalogDetailScreen(
     onBack: () -> Unit = {},
     onGoToCart: () -> Unit = {},
     viewModel: CatalogDetailViewModel = viewModel()
 ) {
-    val service by viewModel.service.collectAsState()
-    val inCart by viewModel.inCart.collectAsState()
+    val state by viewModel.uiState.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
-    val scrollState = rememberScrollState()
 
+    when (val s = state) {
+        is CatalogDetailUiState.Loading -> Box(
+            Modifier.fillMaxSize(),
+            contentAlignment = Alignment.Center
+        ) { CircularProgressIndicator() }
 
-    val data = service
-    if (data == null) {
-        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            Text("Jasa tidak ditemukan")
+        is CatalogDetailUiState.NotFound -> Column(
+            Modifier.fillMaxSize(),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            Text("Jasa tidak ditemukan", style = MaterialTheme.typography.titleMedium)
+            Spacer(Modifier.height(12.dp))
+            Button(onClick = onBack) { Text("Kembali") }
         }
-        return
+
+        is CatalogDetailUiState.Success -> CatalogDetailContent(
+            service = s.service,
+            inCart = s.inCart,
+            snackbarHostState = snackbarHostState,
+            onBack = onBack,
+            onFavoriteClick = viewModel::toggleFavorite,
+            onCartClick = {
+                if (s.inCart) {
+                    onGoToCart()
+                } else {
+                    viewModel.addToCart()
+                    scope.launch { snackbarHostState.showSnackbar("Ditambahkan ke keranjang") }
+                }
+            }
+        )
     }
+}
+
+// CONTENT: hanya menerima nilai dan lambda
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+fun CatalogDetailContent(
+    service: Service,
+    inCart: Boolean,
+    snackbarHostState: SnackbarHostState,
+    onBack: () -> Unit,
+    onFavoriteClick: () -> Unit,
+    onCartClick: () -> Unit
+) {
+    val scrollState = rememberScrollState() // state tampilan murni (posisi scroll)
 
     Scaffold(
         snackbarHost = { SnackbarHost(snackbarHostState) },
         bottomBar = {
-            DetailBottomBar(
-                price = data.price,
-                inCart = inCart,
-                onClick = {
-                    if (inCart) {
-                        onGoToCart()
-                    } else {
-                        viewModel.addToCart()
-                        scope.launch { snackbarHostState.showSnackbar("Ditambahkan ke keranjang") }
-                    }
-                }
-            )
+            DetailBottomBar(price = service.price, inCart = inCart, onClick = onCartClick)
         }
     ) { innerPadding ->
         Box(
@@ -115,7 +144,7 @@ fun CatalogDetailScreen(
             Column(modifier = Modifier.verticalScroll(scrollState)) {
                 Box {
                     HeroImage(
-                        service = data,
+                        service = service,
                         modifier = Modifier.fillMaxWidth().height(260.dp)
                     )
                     Column(
@@ -126,13 +155,12 @@ fun CatalogDetailScreen(
                             .background(Color.White)
                             .padding(16.dp)
                     ) {
-                        // Kategori
                         Surface(
                             shape = RoundedCornerShape(50),
                             color = MaterialTheme.colorScheme.primaryContainer
                         ) {
                             Text(
-                                data.category,
+                                service.category,
                                 modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
                                 style = MaterialTheme.typography.labelMedium,
                                 color = MaterialTheme.colorScheme.onPrimaryContainer,
@@ -142,18 +170,17 @@ fun CatalogDetailScreen(
                         Spacer(Modifier.height(12.dp))
 
                         Text(
-                            data.title,
+                            service.title,
                             style = MaterialTheme.typography.titleLarge,
                             fontWeight = FontWeight.SemiBold
                         )
                         Spacer(Modifier.height(8.dp))
 
-                        // Rating
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Icon(Icons.Rounded.Star, null, tint = Accent500, modifier = Modifier.size(18.dp))
                             Spacer(Modifier.size(4.dp))
                             Text(
-                                "${data.rating} (${data.reviewCount} ulasan)",
+                                "${service.rating} (${service.reviewCount} ulasan)",
                                 style = MaterialTheme.typography.bodyMedium
                             )
                             Spacer(Modifier.size(12.dp))
@@ -167,7 +194,6 @@ fun CatalogDetailScreen(
                         }
                         Spacer(Modifier.height(16.dp))
 
-                        // Harga
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -177,7 +203,7 @@ fun CatalogDetailScreen(
                             verticalAlignment = Alignment.Bottom
                         ) {
                             Text(
-                                data.price.toRupiah(),
+                                service.price.toRupiah(),
                                 style = MaterialTheme.typography.headlineMedium,
                                 fontWeight = FontWeight.Bold,
                                 color = MaterialTheme.colorScheme.primary
@@ -197,7 +223,7 @@ fun CatalogDetailScreen(
 
                         SectionTitle("Deskripsi Layanan")
                         Text(
-                            data.description,
+                            service.description,
                             style = MaterialTheme.typography.bodyMedium,
                             color = TextMuted
                         )
@@ -208,7 +234,7 @@ fun CatalogDetailScreen(
                             horizontalArrangement = Arrangement.spacedBy(8.dp),
                             verticalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            data.areas.forEach { area ->
+                            service.areas.forEach { area ->
                                 Surface(shape = RoundedCornerShape(50), color = ChipGray) {
                                     Row(
                                         modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
@@ -238,17 +264,21 @@ fun CatalogDetailScreen(
                         ) {
                             Icon(Icons.Rounded.AccessTime, null, tint = MaterialTheme.colorScheme.primary)
                             Spacer(Modifier.size(12.dp))
-                            Text(data.hours, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
+                            Text(
+                                service.hours,
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = FontWeight.Medium
+                            )
                         }
 
                         Spacer(Modifier.height(20.dp))
-                        ProviderCard(data)
+                        ProviderCard(service)
                         Spacer(Modifier.height(16.dp))
                     }
                 }
             }
 
-            // Bar atas: transparan di atas foto, berubah putih + judul saat di-scroll
+            // Bar atas: transparan di atas foto, putih + judul saat di-scroll
             val progress = (scrollState.value / 600f).coerceIn(0f, 1f)
             Row(
                 modifier = Modifier
@@ -262,7 +292,7 @@ fun CatalogDetailScreen(
                 }
                 if (progress > 0.9f) {
                     Text(
-                        data.title,
+                        service.title,
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.SemiBold,
                         maxLines = 1,
@@ -272,11 +302,11 @@ fun CatalogDetailScreen(
                 } else {
                     Spacer(Modifier.weight(1f))
                 }
-                RoundIconButton(onClick = viewModel::toggleFavorite) {
+                RoundIconButton(onClick = onFavoriteClick) {
                     Icon(
-                        if (data.isFavorite) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder,
+                        if (service.isFavorite) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder,
                         "Favorit",
-                        tint = if (data.isFavorite) Secondary500 else TextMuted
+                        tint = if (service.isFavorite) Secondary500 else TextMuted
                     )
                 }
             }
@@ -423,5 +453,20 @@ private fun DetailBottomBar(price: Int, inCart: Boolean, onClick: () -> Unit) {
                 )
             }
         }
+    }
+}
+
+@Preview(showBackground = true, widthDp = 360, heightDp = 800)
+@Composable
+private fun CatalogDetailPreview() {
+    GenkSuruhTheme {
+        CatalogDetailContent(
+            service = DummyServices.list.first(),
+            inCart = false,
+            snackbarHostState = remember { SnackbarHostState() },
+            onBack = {},
+            onFavoriteClick = {},
+            onCartClick = {}
+        )
     }
 }

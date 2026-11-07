@@ -80,5 +80,7 @@ class CatalogViewModel : ViewModel() {
         priceFilter.value = PriceFilter.ALL
     }
 
-    fun toggleFavorite(id: String) = CatalogRepository.toggleFavorite(id)
+    fun toggleFavorite(id: String) {
+        viewModelScope.launch { CatalogRepository.toggleFavorite(id) }
+    }
 }
