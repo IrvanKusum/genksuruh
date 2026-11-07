@@ -43,10 +43,8 @@ fun TrackingScreen(
                     IconButton(onClick = {}) { Icon(Icons.Filled.Search, contentDescription = "Cari") }
                     IconButton(onClick = {}) { Icon(Icons.Filled.Tune, contentDescription = "Filter") }
                     // DEMO: ketuk avatar untuk berpindah User <-> Penyedia
-                    AvatarButton(onClick = {
-                        TrackingSession.role =
-                            if (role == UserRole.USER) UserRole.PROVIDER else UserRole.USER
-                    })
+
+                    AvatarButton(onClick = {})
                 },
             )
         },

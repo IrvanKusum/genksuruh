@@ -10,6 +10,13 @@ object Routes {
     fun catalogForm(serviceId: String? = null) =
         if (serviceId == null) "catalog_form" else "catalog_form?serviceId=$serviceId"
 
+    // ===== Admin =====
+    const val ADMIN_SERVICES = "admin_services"
+
+    // ===== Profil =====
+    const val PROFILE = "profile"
+    const val PROFILE_EDIT = "profile_edit"
+
     // ===== Keranjang (Rasyid) =====
     const val CART_LIST = "cart_list"
 
@@ -27,7 +34,7 @@ object Routes {
 
     fun review(orderId: String) = "review/$orderId"
 
-    // ===== Lainnya =====
+    // ===== Favorit (Alushya) & Promo (Naja) =====
     const val FAVORITE_LIST = "favorite_list"
     const val PROMO_LIST = "promo_list"
 }

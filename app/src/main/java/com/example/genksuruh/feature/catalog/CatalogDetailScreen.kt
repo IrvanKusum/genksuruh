@@ -23,6 +23,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.AccessTime
+import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.Favorite
 import androidx.compose.material.icons.rounded.FavoriteBorder
 import androidx.compose.material.icons.rounded.Image
@@ -76,6 +77,8 @@ private val ChipGray = Color(0xFFF1F5F9)
 fun CatalogDetailScreen(
     onBack: () -> Unit = {},
     onGoToCart: () -> Unit = {},
+    isAdmin: Boolean = false,
+    onEditClick: (String) -> Unit = {},
     viewModel: CatalogDetailViewModel = viewModel()
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
@@ -111,7 +114,9 @@ fun CatalogDetailScreen(
                     viewModel.addToCart()
                     scope.launch { snackbarHostState.showSnackbar("Ditambahkan ke keranjang") }
                 }
-            }
+            },
+            isAdmin = isAdmin,
+            onEditClick = { onEditClick(s.service.id) }
         )
     }
 }
@@ -125,15 +130,22 @@ fun CatalogDetailContent(
     snackbarHostState: SnackbarHostState,
     onBack: () -> Unit,
     onFavoriteClick: () -> Unit,
-    onCartClick: () -> Unit
+    onCartClick: () -> Unit,
+    isAdmin: Boolean = false,
+    onEditClick: () -> Unit = {}
 ) {
     val scrollState = rememberScrollState() // state tampilan murni (posisi scroll)
 
     Scaffold(
         snackbarHost = { SnackbarHost(snackbarHostState) },
         bottomBar = {
-            DetailBottomBar(price = service.price, inCart = inCart, onClick = onCartClick)
-        }
+            DetailBottomBar(
+                price = service.price,
+                inCart = inCart,
+                isAdmin = isAdmin,
+                onClick = if (isAdmin) onEditClick else onCartClick
+            )
+        },
     ) { innerPadding ->
         Box(
             modifier = Modifier
@@ -421,7 +433,12 @@ private fun ProviderCard(service: Service) {
 }
 
 @Composable
-private fun DetailBottomBar(price: Int, inCart: Boolean, onClick: () -> Unit) {
+private fun DetailBottomBar(
+    price: Int,
+    inCart: Boolean,
+    isAdmin: Boolean,
+    onClick: () -> Unit
+) {
     Surface(color = Color.White, shadowElevation = 12.dp) {
         Row(
             modifier = Modifier
@@ -430,7 +447,11 @@ private fun DetailBottomBar(price: Int, inCart: Boolean, onClick: () -> Unit) {
             verticalAlignment = Alignment.CenterVertically
         ) {
             Column {
-                Text("Total Ongkos", style = MaterialTheme.typography.bodySmall, color = TextMuted)
+                Text(
+                    if (isAdmin) "Harga Jasa" else "Total Ongkos",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = TextMuted
+                )
                 Text(
                     price.toRupiah(),
                     style = MaterialTheme.typography.titleLarge,
@@ -445,10 +466,18 @@ private fun DetailBottomBar(price: Int, inCart: Boolean, onClick: () -> Unit) {
                 shape = RoundedCornerShape(14.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = Secondary500)
             ) {
-                Icon(Icons.Rounded.ShoppingCart, null, modifier = Modifier.size(20.dp))
+                Icon(
+                    if (isAdmin) Icons.Rounded.Edit else Icons.Rounded.ShoppingCart,
+                    null,
+                    modifier = Modifier.size(20.dp)
+                )
                 Spacer(Modifier.size(8.dp))
                 Text(
-                    if (inCart) "Lihat Keranjang" else "Tambah ke Keranjang",
+                    when {
+                        isAdmin -> "Edit Jasa"
+                        inCart -> "Lihat Keranjang"
+                        else -> "Tambah ke Keranjang"
+                    },
                     fontWeight = FontWeight.SemiBold
                 )
             }

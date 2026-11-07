@@ -61,10 +61,12 @@ import com.example.genksuruh.core.theme.Secondary500
 
 private val TextMuted = Color(0xFF64748B)
 
+
 @Composable
 fun CatalogScreen(
     onServiceClick: (String) -> Unit = {},
     onAddClick: () -> Unit = {},
+    showAddButton: Boolean = true,
     viewModel: CatalogViewModel = viewModel()
 ) {
     val state by viewModel.uiState.collectAsState()
@@ -127,18 +129,21 @@ fun CatalogScreen(
             }
         }
 
-        ExtendedFloatingActionButton(
-            onClick = onAddClick,
-            containerColor = Secondary500,
-            contentColor = Color.White,
-            icon = { Icon(Icons.Rounded.Add, contentDescription = null) },
-            text = { Text("Tambah Jasa", fontWeight = FontWeight.SemiBold) },
-            modifier = Modifier
-                .align(Alignment.BottomEnd)
-                .padding(16.dp)
-        )
+        if (showAddButton) {
+            ExtendedFloatingActionButton(
+                onClick = onAddClick,
+                containerColor = Secondary500,
+                contentColor = Color.White,
+                icon = { Icon(Icons.Rounded.Add, contentDescription = null) },
+                text = { Text("Tambah Jasa", fontWeight = FontWeight.SemiBold) },
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .padding(16.dp)
+            )
+        }
     }
 }
+
 
 @Composable
 private fun CatalogHeader() {
