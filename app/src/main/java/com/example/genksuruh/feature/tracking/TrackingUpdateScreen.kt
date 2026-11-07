@@ -25,10 +25,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.example.genksuruh.core.theme.Neutral900
-import com.example.genksuruh.core.theme.Primary100
-import com.example.genksuruh.core.theme.Primary500
-import com.example.genksuruh.core.theme.Secondary700
+import com.example.genksuruh.ui.theme.*
 
 /** Route: tracking_update/{orderId}  (khusus Penyedia) */
 @Composable

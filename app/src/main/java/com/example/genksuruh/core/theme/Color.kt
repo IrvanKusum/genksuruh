@@ -15,3 +15,15 @@ val StarEmpty = Color(0xFFD9E2E8)
 val DangerRed = Color(0xFFD62839)
 val DangerSoft = Color(0xFFFDE8EA)
 val SuccessGreen = Color(0xFF2E9E6B)
+
+// Compatibility colors untuk fitur Tracking
+val Accent500 = Coral
+val Neutral900 = TextDark
+
+val Primary100 = BlueSoft
+val Primary500 = OceanBlue
+val Primary700 = OceanDark
+
+val Secondary700 = DangerRed
+
+val Secondary100 = DangerSoft

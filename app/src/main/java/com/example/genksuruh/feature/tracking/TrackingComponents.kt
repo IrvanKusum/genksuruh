@@ -1,5 +1,6 @@
 package com.example.genksuruh.feature.tracking
 
+import androidx.compose.material.icons.filled.Restaurant
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
@@ -29,12 +30,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import com.example.genksuruh.core.theme.Accent500
-import com.example.genksuruh.core.theme.Neutral900
-import com.example.genksuruh.core.theme.Primary100
-import com.example.genksuruh.core.theme.Primary500
-import com.example.genksuruh.core.theme.Primary700
-import com.example.genksuruh.core.theme.Secondary700
+import com.example.genksuruh.ui.theme.*
 
 // ---- Turunan dari palet tim (tidak membuat warna baru) ----
 internal val SandTint = Accent500.copy(alpha = 0.25f)
@@ -53,6 +49,7 @@ fun TrackingTopBar(
     actions: @Composable RowScope.() -> Unit = {},
 ) {
     TopAppBar(
+        modifier = Modifier.statusBarsPadding(),
         title = { Text(title, style = MaterialTheme.typography.titleLarge) },
         navigationIcon = {
             if (onBack != null) {
@@ -62,7 +59,7 @@ fun TrackingTopBar(
             }
         },
         actions = actions,
-        // inset status bar sudah ditangani Scaffold milik MainActivity
+        // Samakan jarak status bar dengan header pada halaman Ulasan.
         windowInsets = WindowInsets(0.dp, 0.dp, 0.dp, 0.dp),
         colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.White),
     )
@@ -113,6 +110,8 @@ fun CategoryIcon(category: ServiceCategory, modifier: Modifier = Modifier) {
         ServiceCategory.EDUKASI -> Icons.Filled.School to Primary100
         ServiceCategory.KREATIF -> Icons.Filled.Palette to Primary100
         ServiceCategory.HOME_SERVICE -> Icons.Filled.Air to Primary100
+
+        ServiceCategory.ANTAR_MAKANAN -> Icons.Filled.Restaurant to Color(0xFFFFE8CC)
     }
     Box(
         modifier = modifier.size(48.dp).clip(RoundedCornerShape(12.dp)).background(bg),
@@ -256,9 +255,17 @@ fun OrderCard(
                     shape = RoundedCornerShape(12.dp),
                     modifier = Modifier.heightIn(min = 48.dp),
                     contentPadding = PaddingValues(horizontal = 16.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Accent500,
+                        contentColor = Color.White
+                    )
                 ) {
                     Text("Lihat Detail")
-                    Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Icon(
+                        Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp)
+                    )
                 }
             }
         }

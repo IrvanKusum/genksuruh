@@ -40,7 +40,7 @@ enum class OrderTab(val title: String) {
     }
 }
 
-enum class ServiceCategory { SERVIS_IT, EDUKASI, KREATIF, HOME_SERVICE }
+enum class ServiceCategory { SERVIS_IT, EDUKASI, KREATIF, HOME_SERVICE, ANTAR_MAKANAN }
 
 /** Padanan tabel `orders`. */
 data class Order(

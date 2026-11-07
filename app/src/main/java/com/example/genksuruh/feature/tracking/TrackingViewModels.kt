@@ -15,6 +15,8 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import com.example.genksuruh.feature.review.Review
+import com.example.genksuruh.feature.review.ReviewRepository
 
 sealed interface OrdersUiState {
     object Loading : OrdersUiState
@@ -50,6 +52,10 @@ class TrackingDetailViewModel(savedStateHandle: SavedStateHandle) : ViewModel() 
 
     val detail: StateFlow<OrderDetail?> = repo.observeOrder(orderId)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+
+    // Ter-update otomatis setelah ulasan dikirim/dihapus dari halaman Review.
+    val ownReview: StateFlow<Review?> = ReviewRepository.observeOwnReview(orderId)
+        .stateIn(viewModelScope, SharingStarted.Eagerly, null)
 
     fun cancelOrder(onDone: () -> Unit = {}) {
         viewModelScope.launch {

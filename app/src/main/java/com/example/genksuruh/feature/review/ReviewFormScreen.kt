@@ -132,7 +132,7 @@ fun ReviewFormScreen(
                 Box(
                     Modifier.size(56.dp).clip(RoundedCornerShape(12.dp)).background(Color.White),
                     contentAlignment = Alignment.Center,
-                ) { Text("🍱", fontSize = 28.sp) } // ganti dengan foto asli nanti
+                ) { Text(vm.serviceEmoji, fontSize = 28.sp) }
                 Spacer(Modifier.width(12.dp))
                 Column {
                     Text(vm.serviceName, style = MaterialTheme.typography.titleSmall)
