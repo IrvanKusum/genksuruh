@@ -11,10 +11,7 @@ import com.example.genksuruh.feature.favorite.FavoriteScreen
 import com.example.genksuruh.feature.promo.PromoScreen
 import com.example.genksuruh.feature.review.ReviewScreen
 import com.example.genksuruh.feature.tracking.TrackingScreen
-import androidx.navigation.NavType
-import androidx.navigation.navArgument
-import com.example.genksuruh.feature.catalog.CatalogDetailScreen
-import com.example.genksuruh.feature.catalog.CatalogFormScreen
+
 @Composable
 fun AppNavGraph(
     navController: NavHostController,
@@ -26,33 +23,7 @@ fun AppNavGraph(
         modifier = modifier
     ) {
         // ===== Katalog (Irvan) =====
-        composable(Routes.CATALOG_LIST) {
-            CatalogScreen(
-                onServiceClick = { id -> navController.navigate(Routes.catalogDetail(id)) },
-                onAddClick = { navController.navigate(Routes.catalogForm()) }
-            )
-        }
-        composable(
-            route = Routes.CATALOG_DETAIL,
-            arguments = listOf(navArgument("serviceId") { type = NavType.StringType })
-        ) {
-            CatalogDetailScreen(
-                onBack = { navController.popBackStack() },
-                onGoToCart = { navController.navigate(Routes.CART_LIST) }
-            )
-        }
-        composable(
-            route = Routes.CATALOG_FORM,
-            arguments = listOf(
-                navArgument("serviceId") {
-                    type = NavType.StringType
-                    nullable = true
-                    defaultValue = null
-                }
-            )
-        ) {
-            CatalogFormScreen(onClose = { navController.popBackStack() })
-        }
+        composable(Routes.CATALOG_LIST) { CatalogScreen() }
 
         // ===== Keranjang (Rasyid) =====
         composable(Routes.CART_LIST) { CartScreen() }
