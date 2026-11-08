@@ -2,9 +2,7 @@ package com.example.genksuruh.feature.promo
 
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
@@ -146,7 +144,7 @@ fun PromoListContent(
                 contentPadding = PaddingValues(16.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                item { ListHeader(state, actions, onOpenProfile) }
+                item { ListHeader(state, onOpenProfile) }
                 item { BannerPager(state.banners, onOpenDetail) }
                 item {
                     SimpleTabs(
@@ -194,13 +192,8 @@ fun PromoListContent(
     }
 }
 
-@OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun ListHeader(
-    state: PromoListUiState,
-    actions: PromoListActions,
-    onOpenProfile: () -> Unit
-) {
+private fun ListHeader(state: PromoListUiState, onOpenProfile: () -> Unit) {
     Row(
         Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.SpaceBetween,
@@ -232,21 +225,13 @@ private fun ListHeader(
                 Icon(Icons.Default.Tune, contentDescription = "Filter", tint = PromoColors.TextDark)
             }
             Spacer(Modifier.width(2.dp))
-            // Tombol profil. Ketuk: buka profil. Tekan lama: ganti mode User/Penyedia
-            // (sementara untuk tes, hapus onLongClick saat role sudah dari login).
+            // Tombol profil: membuka layar profil.
             Box(
                 Modifier
                     .size(40.dp)
                     .clip(CircleShape)
                     .background(PromoColors.Primary)
-                    .then(
-                        if (state.isProvider) Modifier.border(2.dp, PromoColors.Sand, CircleShape)
-                        else Modifier
-                    )
-                    .combinedClickable(
-                        onClick = onOpenProfile,
-                        onLongClick = { actions.onProviderModeChange(!state.isProvider) }
-                    ),
+                    .clickable(onClick = onOpenProfile),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
