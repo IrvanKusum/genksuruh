@@ -61,9 +61,16 @@ fun ReviewFormScreen(
     Scaffold(
         containerColor = ScreenBg,
         topBar = {
-            Surface(color = Color.White, shadowElevation = 2.dp) {
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                color = Color.White,
+                shadowElevation = 2.dp
+            ) {
                 Row(
-                    Modifier.statusBarsPadding().padding(horizontal = 4.dp, vertical = 8.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .statusBarsPadding()
+                        .padding(horizontal = 4.dp, vertical = 8.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     IconButton(onClick = onClose, enabled = !isSending) {
