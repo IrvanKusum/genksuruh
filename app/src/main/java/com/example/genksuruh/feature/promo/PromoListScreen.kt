@@ -2,9 +2,12 @@ package com.example.genksuruh.feature.promo
 
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.pager.HorizontalPager
@@ -12,8 +15,10 @@ import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.Add
-import androidx.compose.material.icons.outlined.ConfirmationNumber
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -25,314 +30,445 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.coroutines.delay
 
-// ============================================================
-// USER: Promo Tersedia | Voucher Saya
-// ============================================================
+data class PromoListActions(
+    val onProviderModeChange: (Boolean) -> Unit,
+    val onTabSelected: (Int) -> Unit,
+    val onCategorySelected: (String) -> Unit,
+    val onVoucherFilterSelected: (VoucherStatus?) -> Unit,
+    val onClaimClick: (String) -> Unit,
+    val onClaimSuccessDismiss: () -> Unit,
+    val onSeeMyVouchers: () -> Unit,
+    val onUseVoucherClick: (String) -> Unit,
+    val onVoucherSheetDismiss: () -> Unit,
+    val onMarkUsedClick: (String) -> Unit,
+    val onMarkUsedConfirm: () -> Unit,
+    val onMarkUsedDismiss: () -> Unit,
+    val onDeleteClick: (String) -> Unit,
+    val onDeleteConfirm: () -> Unit,
+    val onDeleteDismiss: () -> Unit
+)
 
+/** Penghubung ViewModel dan tampilan. */
 @Composable
-fun PromoListScreen(vm: PromoViewModel, onOpenDetail: (String) -> Unit) {
-    val promos by vm.promos.collectAsState()
-    val claims by vm.claims.collectAsState()
-    val tab = vm.listTab
-
-    var category by remember { mutableStateOf("Semua") }
-    var voucherFilter by remember { mutableStateOf<VoucherStatus?>(null) }
-    var claimedCode by remember { mutableStateOf<String?>(null) }
-    var claimError by remember { mutableStateOf<String?>(null) }
-    var sheetPromo by remember { mutableStateOf<Promo?>(null) }
-
-    val availablePromos = promos.filter {
-        !it.isExpired && (category == "Semua" || it.category == category)
-    }
-
-    // Voucher terbaru di atas, lalu diurutkan Aktif -> Terpakai -> Kedaluwarsa
-    val myVouchers = claims
-        .filter { it.userName == PromoRepository.CURRENT_USER }
-        .reversed()
-        .mapNotNull { c ->
-            promos.find { it.id == c.promoId }?.let { p -> Triple(c, p, vm.effectiveStatus(c, p)) }
-        }
-        .sortedBy { it.third.ordinal }
-    val filteredVouchers = myVouchers.filter { voucherFilter == null || it.third == voucherFilter }
-
-    Scaffold(
-        containerColor = PromoColors.Background,
-    ) { padding ->
-        LazyColumn(
-            modifier = Modifier
-                .padding(padding)
-                .fillMaxSize(),
-            contentPadding = PaddingValues(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            item {
-                PromoHeader(
-                    title = "Promo & Voucher",
-                    isProvider = vm.isProvider,
-                    onToggleProvider = { vm.isProvider = it; vm.listTab = 0 }
-                )
-            }
-
-            if (tab == 0) {
-                item {
-                    BannerPager(
-                        banners = promos.filter { !it.isExpired && !it.isFull }.take(3),
-                        onClick = onOpenDetail
-                    )
-                }
-            }
-
-            item {
-                UnderlineTabs(
-                    titles = listOf("Promo Tersedia", "Voucher Saya"),
-                    selected = tab,
-                    onSelect = { vm.listTab = it }
-                )
-            }
-
-            if (tab == 0) {
-                // ===== PROMO TERSEDIA =====
-                item {
-                    LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        items(promoCategories) { c ->
-                            ChipItem(c, c == category) { category = c }
-                        }
-                    }
-                }
-                if (availablePromos.isEmpty()) {
-                    item {
-                        EmptyState(
-                            Icons.Outlined.ConfirmationNumber,
-                            "Belum ada promo tersedia",
-                            "Pantau terus, promo baru segera hadir",
-                            "Muat Ulang"
-                        ) { category = "Semua" }
-                    }
-                }
-                items(availablePromos, key = { it.id }) { p ->
-                    val mine = claims.any {
-                        it.promoId == p.id && it.userName == PromoRepository.CURRENT_USER
-                    }
-                    PromoCard(p, onClick = { onOpenDetail(p.id) }) {
-                        when {
-                            p.isFull -> SmallButton("Habis", enabled = false) {}
-                            mine -> SmallButton("Diklaim", enabled = false) {}
-                            else -> SmallButton("Klaim") {
-                                val err = vm.claim(p.id)
-                                if (err == null) claimedCode = p.code else claimError = err
-                            }
-                        }
-                    }
-                }
-            } else {
-                // ===== VOUCHER SAYA =====
-                item {
-                    LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        item {
-                            ChipItem("Semua", voucherFilter == null) { voucherFilter = null }
-                        }
-                        items(VoucherStatus.values().toList()) { s ->
-                            ChipItem(s.label, voucherFilter == s) { voucherFilter = s }
-                        }
-                    }
-                }
-                if (filteredVouchers.isEmpty()) {
-                    item {
-                        EmptyState(
-                            Icons.Outlined.ConfirmationNumber,
-                            "Belum ada voucher",
-                            "Klaim promo dulu, yuk!",
-                            "Lihat Promo"
-                        ) { vm.listTab = 0 }
-                    }
-                }
-                items(filteredVouchers, key = { it.first.id }) { (c, p, status) ->
-                    VoucherTicketCard(p, status, c.usedAt) { sheetPromo = p }
-                }
-            }
-        }
-    }
-
-    claimedCode?.let { code ->
-        ClaimSuccessDialog(
-            code = code,
-            onSeeVouchers = { vm.listTab = 1; claimedCode = null },
-            onDismiss = { claimedCode = null }
-        )
-    }
-    claimError?.let { msg -> ClaimFailedDialog(msg) { claimError = null } }
-    sheetPromo?.let { VoucherSheet(it) { sheetPromo = null } }
-}
-
-// ============================================================
-// PENYEDIA: Promo Saya
-// ============================================================
-
-@Composable
-fun PromoManageScreen(
-    vm: PromoViewModel,
+fun PromoListRoute(
+    viewModel: PromoListViewModel,
+    snackbarHostState: SnackbarHostState,
     onOpenDetail: (String) -> Unit,
     onCreate: () -> Unit,
-    onEdit: (String) -> Unit
+    onEdit: (String) -> Unit,
+    onOpenProfile: () -> Unit
 ) {
-    val promos by vm.promos.collectAsState()
-    val claims by vm.claims.collectAsState()
+    val state by viewModel.uiState.collectAsStateWithLifecycle()
 
-    var markTarget by remember { mutableStateOf<VoucherClaim?>(null) }
-    var deleteTarget by remember { mutableStateOf<Promo?>(null) }
+    LaunchedEffect(viewModel) {
+        viewModel.events.collect { event ->
+            snackbarHostState.showPromoMessage(event.message, event.undoable) {
+                viewModel.onUndoDelete()
+            }
+        }
+    }
 
-    val myPromos = promos.filter { it.ownerId == PromoRepository.CURRENT_PROVIDER_ID }
-    val myPromoIds = myPromos.map { it.id }.toSet()
-    val recentClaims = claims.filter { it.promoId in myPromoIds }.reversed()
+    val actions = remember(viewModel) {
+        PromoListActions(
+            onProviderModeChange = viewModel::onProviderModeChange,
+            onTabSelected = viewModel::onTabSelected,
+            onCategorySelected = viewModel::onCategorySelected,
+            onVoucherFilterSelected = viewModel::onVoucherFilterSelected,
+            onClaimClick = viewModel::onClaimClick,
+            onClaimSuccessDismiss = viewModel::onClaimSuccessDismiss,
+            onSeeMyVouchers = viewModel::onSeeMyVouchers,
+            onUseVoucherClick = viewModel::onUseVoucherClick,
+            onVoucherSheetDismiss = viewModel::onVoucherSheetDismiss,
+            onMarkUsedClick = viewModel::onMarkUsedClick,
+            onMarkUsedConfirm = viewModel::onMarkUsedConfirm,
+            onMarkUsedDismiss = viewModel::onMarkUsedDismiss,
+            onDeleteClick = viewModel::onDeleteClick,
+            onDeleteConfirm = viewModel::onDeleteConfirm,
+            onDeleteDismiss = viewModel::onDeleteDismiss
+        )
+    }
 
+    PromoListContent(
+        state = state,
+        snackbarHostState = snackbarHostState,
+        actions = actions,
+        onOpenDetail = onOpenDetail,
+        onCreate = onCreate,
+        onEdit = onEdit,
+        onOpenProfile = onOpenProfile
+    )
+}
+
+@Composable
+fun PromoListContent(
+    state: PromoListUiState,
+    snackbarHostState: SnackbarHostState,
+    actions: PromoListActions,
+    onOpenDetail: (String) -> Unit,
+    onCreate: () -> Unit,
+    onEdit: (String) -> Unit,
+    onOpenProfile: () -> Unit
+) {
     Scaffold(
         containerColor = PromoColors.Background,
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         floatingActionButton = {
-            ExtendedFloatingActionButton(
-                onClick = onCreate,
-                containerColor = PromoColors.Coral,
-                contentColor = Color.White,
-                shape = CircleShape
-            ) {
-                Icon(Icons.Outlined.Add, contentDescription = null)
-                Spacer(Modifier.width(8.dp))
-                Text("Buat Promo", fontWeight = FontWeight.SemiBold)
+            if (state.isProvider && state.selectedTab == 1) {
+                ExtendedFloatingActionButton(
+                    onClick = onCreate,
+                    containerColor = PromoColors.Coral,
+                    contentColor = Color.White
+                ) {
+                    Icon(Icons.Default.Add, contentDescription = null)
+                    Spacer(Modifier.width(8.dp))
+                    Text("Buat Promo", fontWeight = FontWeight.SemiBold)
+                }
             }
         }
     ) { padding ->
-        LazyColumn(
-            modifier = Modifier
-                .padding(padding)
-                .fillMaxSize(),
-            contentPadding = PaddingValues(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            item {
-                PromoHeader(
-                    title = "Promo Saya",
-                    isProvider = vm.isProvider,
-                    onToggleProvider = { vm.isProvider = it; vm.listTab = 0 }
-                )
+        if (state.isLoading) {
+            Box(
+                Modifier
+                    .padding(padding)
+                    .fillMaxSize(),
+                contentAlignment = Alignment.Center
+            ) {
+                CircularProgressIndicator()
             }
-            item {
-                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    StatCard("Promo Aktif", myPromos.count { !it.isExpired }, Modifier.weight(1f))
-                    StatCard("Total Klaim", myPromos.sumOf { it.claimed }, Modifier.weight(1f))
-                    StatCard(
-                        "Terpakai",
-                        recentClaims.count { it.status == VoucherStatus.TERPAKAI },
-                        Modifier.weight(1f)
+        } else {
+            LazyColumn(
+                modifier = Modifier
+                    .padding(padding)
+                    .fillMaxSize(),
+                contentPadding = PaddingValues(16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                item { ListHeader(state, actions, onOpenProfile) }
+                item { BannerPager(state.banners, onOpenDetail) }
+                item {
+                    SimpleTabs(
+                        titles = listOf(
+                            "Promo Tersedia",
+                            if (state.isProvider) "Promo Saya" else "Voucher Saya"
+                        ),
+                        selected = state.selectedTab,
+                        onSelect = actions.onTabSelected
                     )
                 }
-            }
-
-            item { SectionTitle("Promo Saya") }
-            if (myPromos.isEmpty()) {
-                item {
-                    EmptyState(
-                        Icons.Outlined.ConfirmationNumber,
-                        "Belum ada promo", "Buat promo pertamamu sekarang", null
-                    ) {}
+                when {
+                    state.selectedTab == 0 -> availableSection(state, actions, onOpenDetail)
+                    !state.isProvider -> voucherSection(state, actions)
+                    else -> providerSection(state, actions, onOpenDetail, onEdit)
                 }
             }
-            items(myPromos, key = { it.id }) { p ->
-                ProviderPromoCard(
-                    promo = p,
-                    onClick = { onOpenDetail(p.id) },
-                    onEdit = { onEdit(p.id) },
-                    onDelete = { deleteTarget = p }
-                )
-            }
-
-            item { SectionTitle("Klaim Terbaru") }
-            if (recentClaims.isEmpty()) {
-                item { Text("Belum ada klaim.", fontSize = 12.sp, color = PromoColors.TextMuted) }
-            }
-            items(recentClaims, key = { it.id }) { c ->
-                val p = promos.find { it.id == c.promoId }
-                ClaimRow(c, vm.effectiveStatus(c, p)) { markTarget = c }
-            }
-            item { Spacer(Modifier.height(72.dp)) } // ruang untuk tombol mengambang
         }
     }
 
-    markTarget?.let { c ->
-        val code = promos.find { it.id == c.promoId }?.code ?: "-"
-        MarkUsedDialog(
-            c, code,
-            onConfirm = { vm.markUsed(c.id); markTarget = null },
-            onDismiss = { markTarget = null }
+    state.claimSuccessCode?.let { code ->
+        ClaimSuccessDialog(
+            code = code,
+            onSeeVouchers = actions.onSeeMyVouchers,
+            onDismiss = actions.onClaimSuccessDismiss
         )
     }
-    deleteTarget?.let { p ->
+    state.voucherSheet?.let { promo ->
+        VoucherSheet(promo = promo, onDismiss = actions.onVoucherSheetDismiss)
+    }
+    state.markTarget?.let { target ->
+        MarkUsedDialog(
+            userName = target.claim.userName,
+            code = target.promoCode,
+            onConfirm = actions.onMarkUsedConfirm,
+            onDismiss = actions.onMarkUsedDismiss
+        )
+    }
+    state.deleteTarget?.let { promo ->
         ConfirmDeleteDialog(
-            p,
-            onConfirm = { vm.deletePromo(p.id); deleteTarget = null },
-            onDismiss = { deleteTarget = null }
+            promoTitle = promo.title,
+            onConfirm = actions.onDeleteConfirm,
+            onDismiss = actions.onDeleteDismiss
         )
     }
 }
 
-// ============================================================
-// Banner carousel
-// ============================================================
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun ListHeader(
+    state: PromoListUiState,
+    actions: PromoListActions,
+    onOpenProfile: () -> Unit
+) {
+    Row(
+        Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text(
+                text = "Promo & Voucher",
+                fontSize = 20.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = PromoColors.TextDark
+            )
+            Text(
+                text = if (state.isProvider) "Mode Penyedia: ${state.providerName}"
+                else "Halo, ${state.userName} 👋",
+                fontSize = 12.sp,
+                color = PromoColors.TextMuted
+            )
+        }
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(2.dp)
+        ) {
+            // Cari dan filter: baru tampilan, aksinya menyusul.
+            IconButton(onClick = { }) {
+                Icon(Icons.Default.Search, contentDescription = "Cari", tint = PromoColors.TextDark)
+            }
+            IconButton(onClick = { }) {
+                Icon(Icons.Default.Tune, contentDescription = "Filter", tint = PromoColors.TextDark)
+            }
+            Spacer(Modifier.width(2.dp))
+            // Tombol profil. Ketuk: buka profil. Tekan lama: ganti mode User/Penyedia
+            // (sementara untuk tes, hapus onLongClick saat role sudah dari login).
+            Box(
+                Modifier
+                    .size(40.dp)
+                    .clip(CircleShape)
+                    .background(PromoColors.Primary)
+                    .then(
+                        if (state.isProvider) Modifier.border(2.dp, PromoColors.Sand, CircleShape)
+                        else Modifier
+                    )
+                    .combinedClickable(
+                        onClick = onOpenProfile,
+                        onLongClick = { actions.onProviderModeChange(!state.isProvider) }
+                    ),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Person,
+                    contentDescription = "Profil",
+                    tint = Color.White,
+                    modifier = Modifier.size(22.dp)
+                )
+            }
+        }
+    }
+}
+
+private fun LazyListScope.availableSection(
+    state: PromoListUiState,
+    actions: PromoListActions,
+    onOpenDetail: (String) -> Unit
+) {
+    item {
+        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            items(promoCategories) { category ->
+                ChipItem(
+                    label = category,
+                    selected = category == state.selectedCategory,
+                    onClick = { actions.onCategorySelected(category) }
+                )
+            }
+        }
+    }
+    if (state.availablePromos.isEmpty()) {
+        item {
+            EmptyState(
+                emoji = "🎟️",
+                title = "Belum ada promo tersedia",
+                subtitle = "Pantau terus, promo baru segera hadir",
+                buttonLabel = null,
+                onClick = {}
+            )
+        }
+    }
+    items(state.availablePromos, key = { it.promo.id }) { entry ->
+        PromoCard(
+            promo = entry.promo,
+            onClick = { onOpenDetail(entry.promo.id) }
+        ) {
+            when {
+                entry.promo.isFull -> SmallButton("Habis", enabled = false) {}
+                entry.claimedByMe -> SmallButton("Diklaim", enabled = false) {}
+                else -> SmallButton("Klaim") { actions.onClaimClick(entry.promo.id) }
+            }
+        }
+    }
+}
+
+private fun LazyListScope.voucherSection(
+    state: PromoListUiState,
+    actions: PromoListActions
+) {
+    item {
+        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            item {
+                ChipItem(
+                    label = "Semua (${state.totalVouchers})",
+                    selected = state.voucherFilter == null,
+                    onClick = { actions.onVoucherFilterSelected(null) }
+                )
+            }
+            items(VoucherStatus.values().toList()) { status ->
+                ChipItem(
+                    label = status.label,
+                    selected = state.voucherFilter == status,
+                    onClick = { actions.onVoucherFilterSelected(status) }
+                )
+            }
+        }
+    }
+    if (state.vouchers.isEmpty()) {
+        item {
+            EmptyState(
+                emoji = "🎫",
+                title = "Belum ada voucher",
+                subtitle = "Klaim promo dulu, yuk!",
+                buttonLabel = "Lihat Promo",
+                onClick = { actions.onTabSelected(0) }
+            )
+        }
+    }
+    items(state.vouchers, key = { it.claim.id }) { entry ->
+        VoucherTicketCard(
+            promo = entry.promo,
+            status = entry.status,
+            usedAt = entry.claim.usedAt,
+            onUse = { actions.onUseVoucherClick(entry.promo.id) }
+        )
+    }
+}
+
+private fun LazyListScope.providerSection(
+    state: PromoListUiState,
+    actions: PromoListActions,
+    onOpenDetail: (String) -> Unit,
+    onEdit: (String) -> Unit
+) {
+    item {
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            StatCard("Promo Aktif", state.activePromoCount, Modifier.weight(1f))
+            StatCard("Total Klaim", state.totalClaimCount, Modifier.weight(1f))
+            StatCard("Terpakai", state.usedClaimCount, Modifier.weight(1f))
+        }
+    }
+    item { SectionTitle("Promo Saya") }
+    if (state.myPromos.isEmpty()) {
+        item {
+            EmptyState(
+                emoji = "📣",
+                title = "Belum ada promo",
+                subtitle = "Buat promo pertamamu sekarang",
+                buttonLabel = null,
+                onClick = {}
+            )
+        }
+    }
+    items(state.myPromos, key = { it.id }) { promo ->
+        PromoCard(promo = promo, onClick = { onOpenDetail(promo.id) }) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                StatusBadge(
+                    if (promo.isExpired) VoucherStatus.KEDALUWARSA else VoucherStatus.AKTIF
+                )
+                OverflowMenu(
+                    onEdit = { onEdit(promo.id) },
+                    onDelete = { actions.onDeleteClick(promo.id) }
+                )
+            }
+        }
+    }
+    item { SectionTitle("Klaim Terbaru") }
+    if (state.providerClaims.isEmpty()) {
+        item {
+            Text("Belum ada klaim.", fontSize = 12.sp, color = PromoColors.TextMuted)
+        }
+    }
+    items(state.providerClaims, key = { it.claim.id }) { entry ->
+        ClaimRow(item = entry, onMark = { actions.onMarkUsedClick(entry.claim.id) })
+    }
+    item { Spacer(Modifier.height(72.dp)) }
+}
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun BannerPager(banners: List<Promo>, onClick: (String) -> Unit) {
     if (banners.isEmpty()) return
     val pagerState = rememberPagerState(pageCount = { banners.size })
+
     LaunchedEffect(banners.size) {
         while (banners.size > 1) {
             delay(4000)
             pagerState.animateScrollToPage((pagerState.currentPage + 1) % banners.size)
         }
     }
+
+    val gradients = listOf(
+        listOf(PromoColors.Primary, PromoColors.PrimaryDark),
+        listOf(PromoColors.Coral, Color(0xFFE85D3A)),
+        listOf(PromoColors.PrimaryDark, PromoColors.Primary)
+    )
+
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
         HorizontalPager(
             state = pagerState,
             modifier = Modifier.fillMaxWidth(),
             pageSpacing = 12.dp
         ) { page ->
-            val p = banners[page]
+            val promo = banners[page]
             Box(
                 Modifier
                     .fillMaxWidth()
                     .height(140.dp)
                     .clip(RoundedCornerShape(16.dp))
-                    .background(
-                        Brush.linearGradient(listOf(PromoColors.Primary, PromoColors.PrimaryDark))
-                    )
-                    .clickable { onClick(p.id) }
+                    .background(Brush.linearGradient(gradients[page % gradients.size]))
+                    .clickable { onClick(promo.id) }
                     .padding(16.dp)
             ) {
+                Text(
+                    text = "PROMO",
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = PromoColors.TextDark,
+                    modifier = Modifier
+                        .align(Alignment.TopStart)
+                        .background(PromoColors.Sand, RoundedCornerShape(50))
+                        .padding(horizontal = 8.dp, vertical = 2.dp)
+                )
                 Column(
                     Modifier
                         .align(Alignment.BottomStart)
-                        .fillMaxWidth(0.68f),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                        .fillMaxWidth(0.7f)
                 ) {
                     Text(
-                        p.title, color = Color.White, fontSize = 17.sp,
-                        fontWeight = FontWeight.Bold, maxLines = 2, overflow = TextOverflow.Ellipsis
+                        text = promo.title,
+                        color = Color.White,
+                        fontSize = 17.sp,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis
                     )
                     Text(
-                        p.code, color = Color.White, fontSize = 10.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        modifier = Modifier
-                            .background(Color.White.copy(alpha = 0.2f), RoundedCornerShape(50))
-                            .padding(horizontal = 10.dp, vertical = 3.dp)
+                        text = "Kode: ${promo.code}",
+                        color = Color.White.copy(alpha = 0.9f),
+                        fontSize = 12.sp
                     )
                 }
-                Text(p.emoji, fontSize = 56.sp, modifier = Modifier.align(Alignment.CenterEnd))
+                Text(
+                    text = promo.emoji,
+                    fontSize = 56.sp,
+                    modifier = Modifier.align(Alignment.CenterEnd)
+                )
             }
         }
         Spacer(Modifier.height(8.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-            repeat(banners.size) { i ->
-                val active = i == pagerState.currentPage
+            repeat(banners.size) { index ->
+                val active = index == pagerState.currentPage
                 Box(
                     Modifier
                         .height(6.dp)

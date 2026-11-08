@@ -1,5 +1,9 @@
 package com.example.genksuruh.feature.promo
 
+object AppClock {
+    const val TODAY = "2026-11-01"
+}
+
 enum class DiscountType { PERSEN, NOMINAL }
 
 enum class VoucherStatus(val label: String) {
@@ -19,10 +23,9 @@ data class Promo(
     val maxDiscount: Int = 0,
     val minOrder: Int = 0,
     val serviceName: String,
-    val providerName: String,   // nama yang tampil di UI
-    val ownerId: String,        // pemilik promo (untuk mode Penyedia)
-    val startDate: String,      // yyyy-MM-dd
-    val endDate: String,        // yyyy-MM-dd
+    val providerName: String,
+    val startDate: String,
+    val endDate: String,
     val quota: Int,
     val claimed: Int,
     val description: String = "",
@@ -30,10 +33,13 @@ data class Promo(
 ) {
     val isFull: Boolean get() = claimed >= quota
     val remaining: Int get() = (quota - claimed).coerceAtLeast(0)
-    val isExpired: Boolean get() = endDate < PromoRepository.TODAY
+    val isExpired: Boolean get() = endDate < AppClock.TODAY
     val badge: String
-        get() = if (discountType == DiscountType.PERSEN) "$discountValue%"
-        else "Rp ${discountValue / 1000}rb"
+        get() = when {
+            discountType == DiscountType.PERSEN -> "$discountValue%"
+            discountValue % 1000 == 0 -> "Rp ${discountValue / 1000}rb"
+            else -> "Rp $discountValue"
+        }
 }
 
 data class VoucherClaim(
@@ -44,6 +50,13 @@ data class VoucherClaim(
     val claimedAt: String,
     val usedAt: String? = null
 )
+
+fun VoucherClaim.effectiveStatus(promo: Promo?): VoucherStatus =
+    if (status == VoucherStatus.AKTIF && promo?.isExpired == true) {
+        VoucherStatus.KEDALUWARSA
+    } else {
+        status
+    }
 
 data class DeletedSnapshot(val promo: Promo, val claims: List<VoucherClaim>)
 
@@ -59,7 +72,8 @@ val serviceOptions = listOf(
 )
 
 val promoCategories = listOf(
-    "Semua", "Antar Makanan", "Beli Jajan", "Temani Acara", "Bantu Rumah Tangga"
+    "Semua", "Antar Makanan", "Beli Jajan", "Temani Acara",
+    "Bantu Rumah Tangga", "Print dan Fotokopi"
 )
 
 val defaultTerms = listOf(
@@ -67,3 +81,13 @@ val defaultTerms = listOf(
     "Tidak bisa digabung dengan promo lain.",
     "Berlaku selama periode dan kuota masih tersedia."
 )
+
+// ===== Model khusus tampilan =====
+
+data class PromoItem(val promo: Promo, val claimedByMe: Boolean)
+
+data class VoucherItem(val claim: VoucherClaim, val promo: Promo, val status: VoucherStatus)
+
+data class ClaimItem(val claim: VoucherClaim, val promoCode: String, val status: VoucherStatus)
+
+data class PromoEvent(val message: String, val undoable: Boolean = false)

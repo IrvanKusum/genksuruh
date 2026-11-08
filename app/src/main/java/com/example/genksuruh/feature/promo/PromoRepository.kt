@@ -1,71 +1,113 @@
 package com.example.genksuruh.feature.promo
 
+import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.viewmodel.initializer
+import androidx.lifecycle.viewmodel.viewModelFactory
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 
-/**
- * Repository dummy (in-memory). Nanti isi fungsi-fungsinya diganti
- * dengan panggilan Supabase (tabel vouchers & voucher_claims).
- */
-object PromoRepository {
-    const val TODAY = "2026-11-01"          // "hari ini" sesuai desain
-    const val CURRENT_USER = "Irvan"
-    const val CURRENT_PROVIDER_ID = "dimas"
-    const val CURRENT_PROVIDER_NAME = "Dimas Pratama"
+/** Kontrak data. ViewModel hanya tahu interface ini. Nanti Supabase tinggal mengimplementasikannya. */
+interface PromoRepository {
+    val promos: Flow<List<Promo>>
+    val claims: Flow<List<VoucherClaim>>
+
+    suspend fun getPromoById(id: String): Promo?
+    suspend fun isCodeTaken(code: String, excludePromoId: String?): Boolean
+    suspend fun savePromo(promo: Promo): Result<Unit>
+    suspend fun deletePromo(id: String): Result<Unit>
+    suspend fun undoDelete(): Result<Unit>
+    suspend fun claimPromo(promoId: String, userName: String): Result<Promo>
+    suspend fun markClaimUsed(claimId: String): Result<Unit>
+}
+
+/** Data dummy (disimpan di memori). */
+class FakePromoRepository : PromoRepository {
 
     private val _promos = MutableStateFlow(seedPromos())
-    val promos: StateFlow<List<Promo>> = _promos.asStateFlow()
-
     private val _claims = MutableStateFlow(seedClaims())
-    val claims: StateFlow<List<VoucherClaim>> = _claims.asStateFlow()
+    private var lastDeleted: DeletedSnapshot? = null
 
-    fun getPromo(id: String): Promo? = _promos.value.find { it.id == id }
+    override val promos: Flow<List<Promo>> = _promos.asStateFlow()
+    override val claims: Flow<List<VoucherClaim>> = _claims.asStateFlow()
 
-    fun upsertPromo(promo: Promo) {
+    override suspend fun getPromoById(id: String): Promo? =
+        _promos.value.find { it.id == id }
+
+    override suspend fun isCodeTaken(code: String, excludePromoId: String?): Boolean =
+        _promos.value.any { it.code.equals(code, ignoreCase = true) && it.id != excludePromoId }
+
+    override suspend fun savePromo(promo: Promo): Result<Unit> {
         _promos.update { list ->
-            if (list.any { it.id == promo.id }) list.map { if (it.id == promo.id) promo else it }
-            else list + promo
-        }
-    }
-
-    fun deletePromo(id: String): DeletedSnapshot? {
-        val promo = getPromo(id) ?: return null
-        val related = _claims.value.filter { it.promoId == id }
-        _promos.update { list -> list.filterNot { it.id == id } }
-        _claims.update { list -> list.filterNot { it.promoId == id } }
-        return DeletedSnapshot(promo, related)
-    }
-
-    fun restore(snapshot: DeletedSnapshot) {
-        _promos.update { it + snapshot.promo }
-        _claims.update { it + snapshot.claims }
-    }
-
-    /** Return null kalau sukses, atau pesan error. */
-    fun claimPromo(promoId: String, user: String): String? {
-        val promo = getPromo(promoId) ?: return "Promo tidak ditemukan."
-        if (promo.isExpired) return "Promo sudah berakhir."
-        if (promo.isFull) return "Kuota promo sudah habis."
-        if (_claims.value.any { it.promoId == promoId && it.userName == user }) {
-            return "Kamu sudah mengklaim voucher ini sebelumnya."
-        }
-        _claims.update {
-            it + VoucherClaim("c${System.nanoTime()}", promoId, user, VoucherStatus.AKTIF, TODAY)
-        }
-        _promos.update { list ->
-            list.map { if (it.id == promoId) it.copy(claimed = it.claimed + 1) else it }
-        }
-        return null
-    }
-
-    fun markUsed(claimId: String) {
-        _claims.update { list ->
-            list.map {
-                if (it.id == claimId) it.copy(status = VoucherStatus.TERPAKAI, usedAt = TODAY) else it
+            if (list.any { it.id == promo.id }) {
+                list.map { if (it.id == promo.id) promo else it }
+            } else {
+                list + promo
             }
         }
+        return Result.success(Unit)
+    }
+
+    override suspend fun deletePromo(id: String): Result<Unit> {
+        val promo = _promos.value.find { it.id == id }
+            ?: return Result.failure(NoSuchElementException("Promo tidak ditemukan"))
+        lastDeleted = DeletedSnapshot(promo, _claims.value.filter { it.promoId == id })
+        _promos.update { list -> list.filterNot { it.id == id } }
+        _claims.update { list -> list.filterNot { it.promoId == id } }
+        return Result.success(Unit)
+    }
+
+    override suspend fun undoDelete(): Result<Unit> {
+        val snapshot = lastDeleted
+            ?: return Result.failure(IllegalStateException("Tidak ada promo untuk dikembalikan"))
+        _promos.update { list -> list + snapshot.promo }
+        _claims.update { list -> list + snapshot.claims }
+        lastDeleted = null
+        return Result.success(Unit)
+    }
+
+    override suspend fun claimPromo(promoId: String, userName: String): Result<Promo> {
+        val promo = _promos.value.find { it.id == promoId }
+            ?: return Result.failure(NoSuchElementException("Promo tidak ditemukan"))
+        if (promo.isExpired) {
+            return Result.failure(IllegalStateException("Promo sudah berakhir"))
+        }
+        if (promo.isFull) {
+            return Result.failure(IllegalStateException("Kuota promo sudah habis"))
+        }
+        if (_claims.value.any { it.promoId == promoId && it.userName == userName }) {
+            return Result.failure(IllegalStateException("Kamu sudah mengklaim voucher ini sebelumnya"))
+        }
+        val updated = promo.copy(claimed = promo.claimed + 1)
+        _claims.update { list ->
+            list + VoucherClaim(
+                id = "c${System.nanoTime()}",
+                promoId = promoId,
+                userName = userName,
+                status = VoucherStatus.AKTIF,
+                claimedAt = AppClock.TODAY
+            )
+        }
+        _promos.update { list -> list.map { if (it.id == promoId) updated else it } }
+        return Result.success(updated)
+    }
+
+    override suspend fun markClaimUsed(claimId: String): Result<Unit> {
+        if (_claims.value.none { it.id == claimId }) {
+            return Result.failure(NoSuchElementException("Klaim tidak ditemukan"))
+        }
+        _claims.update { list ->
+            list.map {
+                if (it.id == claimId) {
+                    it.copy(status = VoucherStatus.TERPAKAI, usedAt = AppClock.TODAY)
+                } else {
+                    it
+                }
+            }
+        }
+        return Result.success(Unit)
     }
 }
 
@@ -74,8 +116,7 @@ private fun seedPromos() = listOf(
         id = "p1", title = "Hemat 50% Antar Makanan Pertama", code = "GENKPERTAMA",
         category = "Antar Makanan", emoji = "🍱",
         discountType = DiscountType.PERSEN, discountValue = 50, maxDiscount = 5000, minOrder = 8000,
-        serviceName = "Antar Makanan Kantin FILKOM",
-        providerName = "Ryul Anggora", ownerId = "ryul",
+        serviceName = "Antar Makanan Kantin FILKOM", providerName = "Dimas Pratama",
         startDate = "2026-11-01", endDate = "2026-11-30", quota = 100, claimed = 76,
         description = "Khusus pesanan antar makanan pertama kamu di GenkSuruh.co. Hemat sampai Rp 5.000!",
         terms = listOf(
@@ -88,8 +129,7 @@ private fun seedPromos() = listOf(
         id = "p2", title = "Gratis Biaya Titip Jajan", code = "JAJANGRATIS",
         category = "Beli Jajan", emoji = "🛒",
         discountType = DiscountType.NOMINAL, discountValue = 5000,
-        serviceName = "Titip Beli Jajan Indomaret",
-        providerName = "Nada Daja", ownerId = "nada",
+        serviceName = "Titip Beli Jajan Indomaret", providerName = "Nadia Putri",
         startDate = "2026-11-01", endDate = "2026-11-15", quota = 50, claimed = 31,
         description = "Potongan biaya titip untuk belanja di Indomaret area kampus.",
         terms = defaultTerms
@@ -98,9 +138,7 @@ private fun seedPromos() = listOf(
         id = "p3", title = "Diskon Rp 20.000 Temani Nonton Konser", code = "KONSER20",
         category = "Temani Acara", emoji = "🎤",
         discountType = DiscountType.NOMINAL, discountValue = 20000, minOrder = 75000,
-        serviceName = "Temani Nonton Konser",
-        providerName = "Frans Leonardo",
-        ownerId = "frans", // dummy: sesuai desain, KONSER20 tampil di "Promo Saya" milik Dimas
+        serviceName = "Temani Nonton Konser", providerName = "Rafi Ahmad",
         startDate = "2026-11-01", endDate = "2026-11-30", quota = 30, claimed = 12,
         description = "Ada teman buat nonton konser, hemat Rp 20.000.",
         terms = defaultTerms
@@ -109,8 +147,7 @@ private fun seedPromos() = listOf(
         id = "p4", title = "Diskon 20% Ganti Gas Elpiji", code = "GASHEMAT20",
         category = "Bantu Rumah Tangga", emoji = "🔥",
         discountType = DiscountType.PERSEN, discountValue = 20,
-        serviceName = "Ganti Gas Elpiji 3 Kg",
-        providerName = "Louis Elliot", ownerId = "louis",
+        serviceName = "Ganti Gas Elpiji 3 Kg", providerName = "Bagas Saputra",
         startDate = "2026-11-01", endDate = "2026-11-20", quota = 40, claimed = 40,
         description = "Diskon jasa ganti gas elpiji 3 Kg.",
         terms = defaultTerms
@@ -119,16 +156,13 @@ private fun seedPromos() = listOf(
         id = "p5", title = "Diskon 15% Fotokopi dan Jilid Skripsi", code = "SKRIPSI15",
         category = "Print dan Fotokopi", emoji = "🖨️",
         discountType = DiscountType.PERSEN, discountValue = 15,
-        serviceName = "Fotokopi dan Jilid Skripsi",
-        providerName = "Oppa Gajima", ownerId = "oppa",
+        serviceName = "Fotokopi dan Jilid Skripsi", providerName = "Salsa Maharani",
         startDate = "2026-10-01", endDate = "2026-10-20", quota = 60, claimed = 48,
         description = "Diskon fotokopi dan jilid untuk mahasiswa tingkat akhir.",
         terms = defaultTerms
     )
 )
 
-// GENKPERTAMA sengaja belum diklaim Irvan supaya alur "Klaim" bisa dites.
-// Setelah diklaim, daftar Voucher Saya sama persis dengan desain.
 private fun seedClaims() = listOf(
     VoucherClaim("c1", "p3", "Irvan", VoucherStatus.AKTIF, "2026-10-30"),
     VoucherClaim("c2", "p2", "Irvan", VoucherStatus.TERPAKAI, "2026-10-25", "2026-10-28"),
@@ -137,3 +171,34 @@ private fun seedClaims() = listOf(
     VoucherClaim("c5", "p1", "Fajar Nugroho", VoucherStatus.AKTIF, "2026-11-01"),
     VoucherClaim("c6", "p1", "Putri Anjani", VoucherStatus.TERPAKAI, "2026-11-01", "2026-11-01")
 )
+
+/** Sesi pengguna dummy. Nanti diganti data login. */
+class SessionRepository {
+    val currentUser: String = "Irvan"
+    val currentProvider: String = "Dimas Pratama"
+
+    private val _isProvider = MutableStateFlow(false)
+    val isProvider: StateFlow<Boolean> = _isProvider.asStateFlow()
+
+    fun setProviderMode(enabled: Boolean) {
+        _isProvider.value = enabled
+    }
+}
+
+/** Tempat membuat ViewModel beserta dependency-nya. */
+object PromoModule {
+    val repository: PromoRepository by lazy { FakePromoRepository() }
+    val session: SessionRepository by lazy { SessionRepository() }
+
+    val listFactory: ViewModelProvider.Factory = viewModelFactory {
+        initializer { PromoListViewModel(repository, session) }
+    }
+
+    fun detailFactory(promoId: String): ViewModelProvider.Factory = viewModelFactory {
+        initializer { PromoDetailViewModel(promoId, repository, session) }
+    }
+
+    fun formFactory(promoId: String): ViewModelProvider.Factory = viewModelFactory {
+        initializer { PromoFormViewModel(promoId, repository, session) }
+    }
+}
