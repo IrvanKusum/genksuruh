@@ -91,12 +91,15 @@ fun AppNavGraph(
                 },
 
                 onNavigateToCatalog = {
-                    navController.navigate(
-                        Routes.CATALOG_LIST
-                    )
+                    navController.navigate(Routes.CATALOG_LIST)
+                },
+
+                onNavigateToPromo = {
+                    navController.navigate(Routes.PROMO_LIST)
                 }
             )
         }
+
 
         // =====================================================
         // DETAIL / EDIT ITEM KERANJANG (RASYID)

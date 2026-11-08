@@ -42,7 +42,7 @@ import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -61,6 +61,14 @@ import com.example.genksuruh.core.theme.Primary100
 import com.example.genksuruh.core.theme.Primary700
 import com.example.genksuruh.feature.cart.components.CartItemCard
 import com.example.genksuruh.feature.cart.components.CartSummaryCard
+import androidx.compose.foundation.clickable
+import androidx.compose.material.icons.filled.ArrowForward
+import androidx.compose.material.icons.filled.LocalOffer
+import androidx.compose.material.icons.filled.Security
+import androidx.compose.material3.Surface
+import com.example.genksuruh.core.theme.Secondary500
+import com.example.genksuruh.core.theme.Success
+import androidx.compose.foundation.layout.offset
 
 /**
  * Entry point berstatus (terhubung ke [CartViewModel]) untuk route CART_LIST.
@@ -76,9 +84,10 @@ fun CartScreen(
     onNavigateToItemDetail: (itemId: String) -> Unit = {},
     onNavigateToCheckout: () -> Unit = {},
     onNavigateToCatalog: () -> Unit = {},
+    onNavigateToPromo: () -> Unit = {},
     viewModel: CartViewModel = viewModel()
 ) {
-    val uiState by viewModel.uiState.collectAsState()
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 
     CartScreenContent(
         uiState = uiState,
@@ -94,7 +103,8 @@ fun CartScreen(
         onRetryClick = viewModel::loadCart,
         onEditItemClick = onNavigateToItemDetail,
         onCheckoutClick = onNavigateToCheckout,
-        onExploreServicesClick = onNavigateToCatalog
+        onExploreServicesClick = onNavigateToCatalog,
+        onViewVouchersClick = onNavigateToPromo
     )
 }
 
@@ -119,6 +129,7 @@ fun CartScreenContent(
     onEditItemClick: (String) -> Unit,
     onCheckoutClick: () -> Unit,
     onExploreServicesClick: () -> Unit,
+    onViewVouchersClick: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val snackbarHostState = remember { SnackbarHostState() }
@@ -167,7 +178,8 @@ fun CartScreenContent(
                     onDecreaseQuantity = onDecreaseQuantity,
                     onDeleteItemClick = onDeleteItemClick,
                     onEditItemClick = onEditItemClick,
-                    onCheckoutClick = onCheckoutClick
+                    onCheckoutClick = onCheckoutClick,
+                    onViewVouchersClick = onViewVouchersClick
                 )
             }
 
@@ -229,6 +241,7 @@ private fun CartTopBar(itemCount: Int) {
 
 
 /** FRAME 1 / 2 / 3 / 4 — daftar item, select all, dan ringkasan harga. */
+
 @Composable
 private fun CartListContent(
     uiState: CartUiState,
@@ -238,18 +251,35 @@ private fun CartListContent(
     onDecreaseQuantity: (String) -> Unit,
     onDeleteItemClick: (String) -> Unit,
     onEditItemClick: (String) -> Unit,
-    onCheckoutClick: () -> Unit
+    onCheckoutClick: () -> Unit,
+    onViewVouchersClick: () -> Unit
 ) {
-    Column(modifier = Modifier.fillMaxSize()) {
+    Column(
+        modifier = Modifier.fillMaxSize()
+    ) {
+
+        // ==========================================
+        // PILIH SEMUA
+        // ==========================================
+
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 16.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Checkbox(checked = uiState.isAllSelected, onCheckedChange = { onSelectAll() })
-            Text(text = "Pilih Semua", style = MaterialTheme.typography.bodyMedium)
+            Checkbox(
+                checked = uiState.isAllSelected,
+                onCheckedChange = { onSelectAll() }
+            )
+
+            Text(
+                text = "Pilih Semua",
+                style = MaterialTheme.typography.bodyMedium
+            )
+
             Spacer(modifier = Modifier.weight(1f))
+
             Text(
                 text = "${uiState.selectedCount} dari ${uiState.totalItemCount} jasa dipilih",
                 style = MaterialTheme.typography.bodySmall,
@@ -257,45 +287,174 @@ private fun CartListContent(
             )
         }
 
-        if (uiState.selectedCount == 0) {
-            Text(
-                text = "Pilih jasa yang ingin kamu pesan terlebih dahulu",
-                style = MaterialTheme.typography.bodySmall,
-                color = Danger,
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
-            )
-        }
+        // ==========================================
+        // DAFTAR ITEM DAN BANNER
+        // ==========================================
 
-        // CartSummaryCard sengaja dijadikan item TERAKHIR di LazyColumn (bukan elemen
-        // tetap di luar list) supaya ia ikut discroll bersama daftar item -- baru
-        // terlihat saat pengguna scroll sampai bawah, tidak menuh-menuhin layar
-        // dengan "nempel" terus di bagian bawah.
         LazyColumn(
             modifier = Modifier.weight(1f),
-            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 16.dp),
+            contentPadding = PaddingValues(
+                start = 16.dp,
+                end = 16.dp,
+                top = 4.dp,
+                bottom = 10.dp
+            ),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            items(items = uiState.items, key = { it.id }) { item ->
+
+            // Daftar jasa.
+            items(
+                items = uiState.items,
+                key = { it.id }
+            ) { item ->
+
                 CartItemCard(
                     item = item,
-                    onSelectionChange = { onToggleSelection(item.id) },
-                    onEditClick = { onEditItemClick(item.id) },
-                    onDeleteClick = { onDeleteItemClick(item.id) },
-                    onIncreaseQuantity = { onIncreaseQuantity(item.id) },
-                    onDecreaseQuantity = { onDecreaseQuantity(item.id) }
+                    onSelectionChange = {
+                        onToggleSelection(item.id)
+                    },
+                    onEditClick = {
+                        onEditItemClick(item.id)
+                    },
+                    onDeleteClick = {
+                        onDeleteItemClick(item.id)
+                    },
+                    onIncreaseQuantity = {
+                        onIncreaseQuantity(item.id)
+                    },
+                    onDecreaseQuantity = {
+                        onDecreaseQuantity(item.id)
+                    }
                 )
             }
 
-            item(key = "cart_summary") {
-                CartSummaryCard(
-                    selectedCount = uiState.selectedCount,
-                    subtotal = uiState.subtotal,
-                    total = uiState.total,
-                    isCheckoutEnabled = uiState.isCheckoutEnabled,
-                    onCheckoutClick = onCheckoutClick,
-                    modifier = Modifier.padding(top = 4.dp)
+            // ======================================
+            // INFORMASI KEAMANAN DANA
+            // ======================================
+
+            item(key = "cart_safety_banner") {
+                CartSafetyBanner()
+            }
+
+            // ======================================
+            // DISKON DAN VOUCHER
+            // ======================================
+
+            item(key = "cart_voucher_banner") {
+                CartVoucherBanner(
+                    onClick = onViewVouchersClick
                 )
             }
+        }
+
+        // ==========================================
+        // RINGKASAN CHECKOUT (TETAP DI BAWAH)
+        // ==========================================
+
+        CartSummaryCard(
+            selectedCount = uiState.selectedCount,
+            total = uiState.total,
+            isCheckoutEnabled = uiState.isCheckoutEnabled,
+            onCheckoutClick = onCheckoutClick,
+            modifier = Modifier
+                .padding(
+                    start = 16.dp,
+                    end = 16.dp,
+                    top = 4.dp,
+                    bottom = 8.dp
+                )
+                .offset(y = 12.dp)
+        )
+    }
+}
+
+// ==================================================
+// BANNER KEAMANAN DANA
+// ==================================================
+
+@Composable
+private fun CartSafetyBanner() {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        color = Primary100.copy(alpha = 0.75f),
+        shape = RoundedCornerShape(12.dp)
+    ) {
+        Row(
+            modifier = Modifier.padding(11.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(32.dp)
+                    .clip(CircleShape)
+                    .background(Color(0xFF42EFB5)),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.Security,
+                    contentDescription = null,
+                    tint = Color(0xFF087653),
+                    modifier = Modifier.size(19.dp)
+                )
+            }
+
+            Spacer(modifier = Modifier.width(9.dp))
+
+            Text(
+                text = "Dana ditahan aman sampai tugas selesai dikonfirmasi olehmu. Tanpa biaya admin tambahan!",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                lineHeight = MaterialTheme.typography.bodySmall.lineHeight
+            )
+        }
+    }
+}
+
+// ==================================================
+// BANNER DISKON DAN VOUCHER
+// ==================================================
+
+@Composable
+private fun CartVoucherBanner(
+    onClick: () -> Unit
+) {
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick),
+        color = Color(0xFFFFE9E5),
+        shape = RoundedCornerShape(10.dp)
+    ) {
+        Row(
+            modifier = Modifier.padding(
+                horizontal = 12.dp,
+                vertical = 9.dp
+            ),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                imageVector = Icons.Filled.LocalOffer,
+                contentDescription = null,
+                tint = Secondary500,
+                modifier = Modifier.size(17.dp)
+            )
+
+            Spacer(modifier = Modifier.width(7.dp))
+
+            Text(
+                text = "Diskon & voucher dapat dipakai di checkout",
+                modifier = Modifier.weight(1f),
+                style = MaterialTheme.typography.labelMedium,
+                fontWeight = FontWeight.SemiBold,
+                color = Color(0xFF71351E)
+            )
+
+            Icon(
+                imageVector = Icons.Filled.ArrowForward,
+                contentDescription = "Lihat voucher",
+                tint = Color(0xFF71351E),
+                modifier = Modifier.size(17.dp)
+            )
         }
     }
 }
