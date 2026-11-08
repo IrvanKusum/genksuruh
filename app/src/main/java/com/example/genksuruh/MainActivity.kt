@@ -25,10 +25,13 @@ import com.example.genksuruh.navigation.AppNavGraph
 import com.example.genksuruh.navigation.bottomBarRoutes
 
 class MainActivity : ComponentActivity() {
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
         setContent {
             GenkSuruhTheme {
+
                 val sessionViewModel: SessionViewModel = viewModel()
                 val account by sessionViewModel.account.collectAsStateWithLifecycle()
                 val current = account
@@ -36,8 +39,13 @@ class MainActivity : ComponentActivity() {
                 if (current == null) {
                     LoginScreen()
                 } else {
-                    // key(id): ganti akun -> NavController baru, riwayat navigasi bersih
-                    key(current.id) { MainApp(role = current.role, userName = current.name) }
+                    // Ganti NavController ketika akun berganti.
+                    key(current.id) {
+                        MainApp(
+                            role = current.role,
+                            userName = current.name
+                        )
+                    }
                 }
             }
         }
@@ -45,8 +53,12 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-private fun MainApp(role: AccountRole, userName: String) {
+private fun MainApp(
+    role: AccountRole,
+    userName: String
+) {
     val navController = rememberNavController()
+
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = backStackEntry?.destination?.route
 
@@ -56,9 +68,12 @@ private fun MainApp(role: AccountRole, userName: String) {
     ) {
         Scaffold(
             bottomBar = {
-                if (currentRoute in bottomBarRoutes(role)) AppBottomBar(navController, role)
+                if (currentRoute in bottomBarRoutes(role)) {
+                    AppBottomBar(navController, role)
+                }
             }
         ) { innerPadding ->
+
             AppNavGraph(
                 navController = navController,
                 role = role,
