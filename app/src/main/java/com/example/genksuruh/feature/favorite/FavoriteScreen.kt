@@ -1,15 +1,30 @@
 package com.example.genksuruh.feature.favorite
 
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.Modifier
+import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.navigation.compose.NavHost
+import androidx.navigation.compose.rememberNavController
+import com.example.genksuruh.feature.favorite.navigation.FavoriteRoutes
+import com.example.genksuruh.feature.favorite.navigation.favoriteGraph
+import com.example.genksuruh.feature.favorite.viewmodel.FavoriteViewModel
 
 @Composable
-fun FavoriteScreen() {
-    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        Text("Keranjang")
+fun FavoriteScreen(
+    onExploreClick: () -> Unit = {},
+    onOrderClick: (String) -> Unit = {}
+) {
+    val navController = rememberNavController()
+    val viewModel: FavoriteViewModel = viewModel()
+
+    NavHost(
+        navController = navController,
+        startDestination = FavoriteRoutes.LIST
+    ) {
+        favoriteGraph(
+            navController = navController,
+            viewModel = viewModel,
+            onExploreClick = onExploreClick,
+            onOrderClick = onOrderClick
+        )
     }
 }
