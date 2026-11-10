@@ -116,7 +116,7 @@ private fun seedPromos() = listOf(
         id = "p1", title = "Hemat 50% Antar Makanan Pertama", code = "GENKPERTAMA",
         category = "Antar Makanan", emoji = "🍱",
         discountType = DiscountType.PERSEN, discountValue = 50, maxDiscount = 5000, minOrder = 8000,
-        serviceName = "Antar Makanan Kantin FILKOM", providerName = "Dimas Pratama",
+        serviceName = "Antar Makanan Kantin FILKOM", providerName = "Irvan Nabil F.",
         startDate = "2026-11-01", endDate = "2026-11-30", quota = 100, claimed = 76,
         description = "Khusus pesanan antar makanan pertama kamu di GenkSuruh.co. Hemat sampai Rp 5.000!",
         terms = listOf(
@@ -174,14 +174,22 @@ private fun seedClaims() = listOf(
 
 /** Sesi pengguna dummy. Nanti diganti data login. */
 class SessionRepository {
+    // Pengguna: tetap "Irvan" supaya data klaim dummy tetap cocok.
     val currentUser: String = "Irvan"
-    val currentProvider: String = "Dimas Pratama"
+
+    // Penyedia: mengikuti nama akun admin yang sedang login.
+    var currentProvider: String = "Irvan Nabil"
+        private set
 
     private val _isProvider = MutableStateFlow(false)
     val isProvider: StateFlow<Boolean> = _isProvider.asStateFlow()
 
     fun setProviderMode(enabled: Boolean) {
         _isProvider.value = enabled
+    }
+
+    fun setProviderName(name: String) {
+        if (name.isNotBlank()) currentProvider = name
     }
 }
 

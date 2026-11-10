@@ -6,6 +6,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
+import com.example.genksuruh.core.model.Service
 
 /**
  * Data item yang dihapus beserta posisi sebelumnya.
@@ -24,6 +25,11 @@ data class RemovedCartItem(
  * atau Composable.
  */
 class CartRepository {
+
+    companion object {
+        /** Satu keranjang untuk seluruh aplikasi (Beranda, Detail, Favorit, Keranjang). */
+        val shared = CartRepository()
+    }
 
     private val _cartItems =
         MutableStateFlow<List<CartItem>>(emptyList())
@@ -53,11 +59,12 @@ class CartRepository {
         // Jika seluruh item dihapus, tidak akan muncul kembali
         // saat pengguna membuka ulang keranjang.
         if (!hasLoaded) {
-            _cartItems.value = CartDummyData.defaultItems()
-                .map { item ->
-                    item.copy(isSelected = false)
-                }
+            val existing = _cartItems.value
+            val dummy = CartDummyData.defaultItems()
+                .map { it.copy(isSelected = false) }
+                .filter { d -> existing.none { it.id == d.id } }
 
+            _cartItems.value = existing + dummy
             hasLoaded = true
         }
     }
@@ -210,4 +217,42 @@ class CartRepository {
 
         _cartItems.value = restoredItems
     }
+
+    /** Menambah jasa dari katalog ke keranjang. false jika sudah ada. */
+    fun addService(service: Service): Boolean {
+        if (_cartItems.value.any { it.id == service.id }) return false
+
+        val item = CartItem(
+            id = service.id,
+            serviceName = service.title,
+            category = service.category,
+            providerName = service.providerName,
+            price = service.price.toLong(),
+            imageUrl = service.imageUrl,
+            location = "Area Kampus UB",
+            date = "10 November 2026",
+            time = "12.00 WIB",
+            note = "",
+            quantity = 1,
+            isSelected = false
+        )
+        _cartItems.update { it + item }
+        return true
+    }
+
+    fun isInCart(serviceId: String): Boolean =
+        _cartItems.value.any { it.id == serviceId }
+
+    /** Hanya satu item yang dicentang (dipakai "Pesan Sekarang"). */
+    fun selectOnly(itemId: String) {
+        _cartItems.update { items ->
+            items.map { it.copy(isSelected = it.id == itemId) }
+        }
+    }
+
+    /** Hapus item yang sudah dibayar. */
+    fun removeSelected() {
+        _cartItems.update { items -> items.filterNot { it.isSelected } }
+    }
+
 }

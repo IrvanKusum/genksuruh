@@ -16,6 +16,7 @@ enum class ClaimButtonState { CLAIMABLE, CLAIMED, EXPIRED, FULL }
 
 data class PromoDetailUiState(
     val isLoading: Boolean = true,
+    val isProvider: Boolean = false,
     val promo: Promo? = null,
     val isDeleting: Boolean = false,
     val isOwner: Boolean = false,

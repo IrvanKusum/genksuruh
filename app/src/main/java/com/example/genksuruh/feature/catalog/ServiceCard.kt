@@ -41,6 +41,7 @@ import com.example.genksuruh.core.theme.Accent500
 import com.example.genksuruh.core.theme.Secondary500
 import com.example.genksuruh.core.util.toRupiah
 import coil.compose.AsyncImage
+import androidx.compose.material.icons.rounded.ShoppingCart
 
 private val TextMuted = Color(0xFF64748B)
 
@@ -50,6 +51,7 @@ fun ServiceCard(
     service: Service,
     onClick: () -> Unit,
     onFavoriteClick: () -> Unit,
+    onCartClick: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     Card(
@@ -61,23 +63,24 @@ fun ServiceCard(
     ) {
         Box {
             ServiceImage(service)
-            Box(
-                modifier = Modifier
-                    .align(Alignment.TopEnd)
-                    .padding(8.dp)
-                    .size(32.dp)
-                    .clip(CircleShape)
-                    .background(Color.White.copy(alpha = 0.9f))
-                    .clickable(onClick = onFavoriteClick),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    imageVector = if (service.isFavorite) Icons.Rounded.Favorite
-                    else Icons.Rounded.FavoriteBorder,
-                    contentDescription = "Favorit",
-                    tint = if (service.isFavorite) Secondary500 else TextMuted,
-                    modifier = Modifier.size(18.dp)
-                )
+            if (onCartClick != null) {
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.BottomEnd)
+                        .padding(8.dp)
+                        .size(32.dp)
+                        .clip(CircleShape)
+                        .background(Secondary500)
+                        .clickable(onClick = onCartClick),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.ShoppingCart,
+                        contentDescription = "Tambah ke keranjang",
+                        tint = Color.White,
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
             }
         }
 

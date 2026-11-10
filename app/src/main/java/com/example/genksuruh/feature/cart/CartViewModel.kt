@@ -1,4 +1,3 @@
-
 package com.example.genksuruh.feature.cart
 
 import androidx.lifecycle.ViewModel
@@ -9,6 +8,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -16,6 +16,13 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import java.util.TimeZone
+
+import com.example.genksuruh.core.model.Service
+import com.example.genksuruh.feature.promo.DiscountType
+import com.example.genksuruh.feature.promo.PromoModule
+import com.example.genksuruh.feature.promo.effectiveStatus
+import com.example.genksuruh.feature.promo.VoucherStatus as ClaimStatus
+import com.example.genksuruh.feature.tracking.FakeTrackingRepository
 
 /**
  * Hasil proses checkout.
@@ -38,7 +45,7 @@ enum class CheckoutResult {
  * Tidak mengakses CartDummyData secara langsung.
  */
 class CartViewModel(
-    private val repository: CartRepository = CartRepository()
+    private val repository: CartRepository = CartRepository.shared
 ) : ViewModel() {
 
     // =====================================================
@@ -379,34 +386,30 @@ class CartViewModel(
                     VoucherStatus.INPUT
                 },
                 voucherDiscountAmount = 0L,
+                voucherClaimId = null,
+                voucherLabel = "",
                 voucherMessage = null
             )
         }
     }
 
     /**
-     * Memvalidasi voucher menggunakan dummy data.
+     * Memvalidasi voucher membaca promo asli milik PromoModule.
      */
     fun applyVoucher() {
         val initial = uiState.value
+        val code = initial.voucherCode.trim().uppercase()
 
-        val code = initial.voucherCode
-            .trim()
-            .uppercase()
-
-        if (
-            code.isBlank() ||
-            initial.voucherStatus == VoucherStatus.VALIDATING
-        ) {
-            return
-        }
+        if (code.isBlank() || initial.voucherStatus == VoucherStatus.VALIDATING) return
 
         _screenState.update {
             it.copy(
                 voucherCode = code,
                 voucherStatus = VoucherStatus.VALIDATING,
                 voucherDiscountAmount = 0L,
-                voucherMessage = null
+                voucherMessage = null,
+                voucherClaimId = null,
+                voucherLabel = ""
             )
         }
 
@@ -414,51 +417,94 @@ class CartViewModel(
             delay(900L)
 
             val latest = uiState.value
-
-            // Batalkan hasil validasi jika kode atau
-            // kondisi keranjang telah berubah.
             if (
                 latest.voucherCode.trim().uppercase() != code ||
                 latest.voucherStatus != VoucherStatus.VALIDATING
-            ) {
-                return@launch
+            ) return@launch
+
+            val promoRepo = PromoModule.repository
+            val userName = PromoModule.session.currentUser
+
+            val promo = promoRepo.promos.first()
+                .find { it.code.equals(code, ignoreCase = true) }
+
+            val claim = promo?.let { p ->
+                promoRepo.claims.first().find {
+                    it.promoId == p.id &&
+                            it.userName == userName &&
+                            it.effectiveStatus(p) == ClaimStatus.AKTIF
+                }
+            }
+
+            // Hanya item yang cocok dengan jasa/kategori promo yang dihitung.
+            val eligible = promo?.let { p ->
+                latest.selectedItems.filter {
+                    it.serviceName.equals(p.serviceName, ignoreCase = true) ||
+                            it.category.equals(p.category, ignoreCase = true)
+                }
+            }.orEmpty()
+            val base = eligible.sumOf { it.lineTotal }
+
+            fun fail(status: VoucherStatus, message: String, minimum: Long? = null) {
+                _screenState.update {
+                    it.copy(
+                        voucherStatus = status,
+                        voucherDiscountAmount = 0L,
+                        voucherMessage = message,
+                        voucherMinimumTransaction = minimum ?: it.voucherMinimumTransaction
+                    )
+                }
             }
 
             when {
-                code != DUMMY_VOUCHER_CODE -> {
-                    _screenState.update {
-                        it.copy(
-                            voucherStatus = VoucherStatus.NOT_FOUND,
-                            voucherDiscountAmount = 0L,
-                            voucherMessage =
-                                "Kode voucher tidak ditemukan atau tidak dapat digunakan."
-                        )
-                    }
-                }
+                promo == null ->
+                    fail(VoucherStatus.NOT_FOUND, "Kode voucher tidak ditemukan.")
 
-                latest.subtotal < latest.voucherMinimumTransaction -> {
-                    _screenState.update {
-                        it.copy(
-                            voucherStatus = VoucherStatus.MINIMUM_NOT_MET,
-                            voucherDiscountAmount = 0L,
-                            voucherMessage =
-                                "Minimal transaksi ${formatRupiah(latest.voucherMinimumTransaction)}. Tambahkan jasa atau quantity agar voucher dapat digunakan."
-                        )
-                    }
-                }
+                promo.isExpired ->
+                    fail(VoucherStatus.NOT_FOUND, "Promo ini sudah berakhir.")
+
+                claim == null ->
+                    fail(
+                        VoucherStatus.NOT_FOUND,
+                        "Voucher belum kamu klaim atau sudah terpakai. Klaim dulu di menu Promo."
+                    )
+
+                eligible.isEmpty() ->
+                    fail(
+                        VoucherStatus.NOT_FOUND,
+                        "Voucher ini hanya berlaku untuk \"${promo.serviceName}\"."
+                    )
+
+                base < promo.minOrder ->
+                    fail(
+                        VoucherStatus.MINIMUM_NOT_MET,
+                        "Minimal transaksi ${formatRupiah(promo.minOrder.toLong())}. " +
+                                "Tambahkan jasa atau quantity agar voucher dapat digunakan.",
+                        promo.minOrder.toLong()
+                    )
 
                 else -> {
-                    val discount = (
-                            latest.subtotal *
-                                    latest.voucherDiscountPercent / 100L
-                            ).coerceAtMost(latest.subtotal)
+                    val raw = when (promo.discountType) {
+                        DiscountType.PERSEN -> base * promo.discountValue / 100L
+                        DiscountType.NOMINAL -> promo.discountValue.toLong()
+                    }
+                    val capped =
+                        if (promo.discountType == DiscountType.PERSEN && promo.maxDiscount > 0)
+                            raw.coerceAtMost(promo.maxDiscount.toLong())
+                        else raw
+                    val discount = capped.coerceAtMost(base)
 
                     _screenState.update {
                         it.copy(
                             voucherStatus = VoucherStatus.APPLIED,
                             voucherDiscountAmount = discount,
-                            voucherMessage =
-                                "Voucher berhasil diterapkan."
+                            voucherMinimumTransaction = promo.minOrder.toLong(),
+                            voucherClaimId = claim.id,
+                            voucherLabel =
+                                if (promo.discountType == DiscountType.PERSEN)
+                                    "Diskon ${promo.discountValue}%"
+                                else "Potongan ${formatRupiah(promo.discountValue.toLong())}",
+                            voucherMessage = "Voucher berhasil diterapkan."
                         )
                     }
                 }
@@ -475,6 +521,8 @@ class CartViewModel(
                 voucherCode = "",
                 voucherStatus = VoucherStatus.IDLE,
                 voucherDiscountAmount = 0L,
+                voucherClaimId = null,
+                voucherLabel = "",
                 voucherMessage = null
             )
         }
@@ -599,7 +647,13 @@ class CartViewModel(
             } else {
 
                 // Berhasil:
-                // potong saldo sekali.
+                // Tandai voucher terpakai, catat pesanan ke Riwayat Pesanan, & potong saldo sekali.
+                latest.voucherClaimId
+                    ?.takeIf { latest.voucherStatus == VoucherStatus.APPLIED }
+                    ?.let { PromoModule.repository.markClaimUsed(it) }
+
+                FakeTrackingRepository.addOrdersFromCart(latest.selectedItems)
+
                 val payable = latest.checkoutTotal
 
                 _screenState.update {
@@ -640,11 +694,32 @@ class CartViewModel(
         }
     }
 
-    // =====================================================
-    // CONSTANTS
-    // =====================================================
+    /** "Pesan Sekarang": masukkan jasa ke keranjang, centang hanya itu, lalu checkout. */
+    fun buyNow(service: Service) {
+        repository.addService(service)
+        repository.selectOnly(service.id)
+        resetCheckoutState()
+    }
 
-    private companion object {
-        const val DUMMY_VOUCHER_CODE = "GENK20"
+    /** Dipanggil saat meninggalkan layar Sukses: bersihkan item yang sudah dibayar. */
+    fun finishCheckout() {
+        repository.removeSelected()
+        resetCheckoutState()
+    }
+
+    private fun resetCheckoutState() {
+        _screenState.update {
+            it.copy(
+                checkoutProcessStatus = CheckoutProcessStatus.IDLE,
+                checkoutFailureMessage = null,
+                checkoutAttemptAt = null,
+                voucherCode = "",
+                voucherStatus = VoucherStatus.IDLE,
+                voucherDiscountAmount = 0L,
+                voucherMessage = null,
+                voucherClaimId = null,
+                voucherLabel = ""
+            )
+        }
     }
 }

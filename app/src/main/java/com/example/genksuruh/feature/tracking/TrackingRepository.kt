@@ -10,6 +10,7 @@ import kotlinx.coroutines.flow.update
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import com.example.genksuruh.feature.cart.CartItem
 
 /** Kontrak data fitur Status & Riwayat. Nanti bisa diganti implementasi Room/Firebase. */
 interface TrackingRepository {
@@ -23,6 +24,48 @@ object FakeTrackingRepository : TrackingRepository {
 
     private val orders = MutableStateFlow(dummyOrders())
     private val histories = MutableStateFlow(dummyHistories())
+
+    /** Menambahkan pesanan baru hasil checkout keranjang. */
+    fun addOrdersFromCart(items: List<CartItem>, defaultAddress: String = ADDRESS) {
+        val timeNow = SimpleDateFormat("d MMM yyyy • HH:mm 'WIB'", Locale.forLanguageTag("id-ID")).format(Date())
+        val newOrders = items.mapIndexed { index, item ->
+            val orderId = "ORD-2026-${(System.currentTimeMillis() % 10000) + index}"
+            val category = when {
+                item.category.contains("Makanan", ignoreCase = true) || item.category.contains("Jajan", ignoreCase = true) -> ServiceCategory.ANTAR_MAKANAN
+                item.category.contains("Print", ignoreCase = true) || item.category.contains("Kreatif", ignoreCase = true) -> ServiceCategory.KREATIF
+                item.category.contains("Servis", ignoreCase = true) || item.category.contains("IT", ignoreCase = true) -> ServiceCategory.SERVIS_IT
+                item.category.contains("Acara", ignoreCase = true) -> ServiceCategory.EDUKASI
+                else -> ServiceCategory.HOME_SERVICE
+            }
+
+            Order(
+                id = orderId,
+                userId = USER,
+                providerId = PROVIDER,
+                category = category,
+                categoryLabel = item.category,
+                serviceName = item.serviceName,
+                packageName = "${item.quantity}x • ${item.date} • ${item.time}",
+                userName = "Rasyid",
+                userPhone = "0812-3456-7890",
+                userAddress = item.location.ifBlank { defaultAddress },
+                providerName = item.providerName.ifBlank { "Runner Kampus" },
+                providerCompany = "Mitra GenkSuruh",
+                providerRating = 4.9,
+                providerOrderInfo = "100+ order sukses",
+                scheduleText = timeNow,
+                customerNote = item.note.takeIf { it.isNotBlank() },
+                servicePrice = item.price * item.quantity,
+                status = OrderStatus.MENUNGGU
+            )
+        }
+
+        orders.update { current -> newOrders + current }
+
+        newOrders.forEach { o ->
+            addHistory(o.id, OrderStatus.MENUNGGU, "Pesanan berhasil dibuat dari checkout")
+        }
+    }
 
     /** Snapshot untuk mengisi informasi jasa pada halaman ulasan berdasarkan pesanan terpilih. */
     fun findOrder(orderId: String): Order? = orders.value.firstOrNull { it.id == orderId }

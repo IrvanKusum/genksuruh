@@ -45,6 +45,8 @@ data class CartUiState(
     val voucherDiscountPercent: Int = 20,
     val voucherMinimumTransaction: Long = 30_000L,
     val voucherMessage: String? = null,
+    val voucherClaimId: String? = null,
+    val voucherLabel: String = "",
 
     // Saldo WatuPay (dummy).
     val watuPayBalance: Long = 145_500L,

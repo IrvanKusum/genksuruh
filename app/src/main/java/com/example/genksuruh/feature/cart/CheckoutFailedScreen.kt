@@ -443,7 +443,6 @@ private fun FailedTopBar(
         modifier = Modifier
             .fillMaxWidth()
             .background(MaterialTheme.colorScheme.background)
-            .statusBarsPadding()
             .height(54.dp)
             .padding(horizontal = 8.dp),
         verticalAlignment = Alignment.CenterVertically

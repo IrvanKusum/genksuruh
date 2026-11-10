@@ -3,8 +3,11 @@ package com.example.genksuruh.navigation
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import com.example.genksuruh.core.util.openWhatsApp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
@@ -21,6 +24,7 @@ import com.example.genksuruh.feature.cart.CheckoutScreen
 import com.example.genksuruh.feature.cart.CheckoutSuccessScreen
 import com.example.genksuruh.feature.catalog.CatalogDetailScreen
 import com.example.genksuruh.feature.catalog.CatalogFormScreen
+import com.example.genksuruh.feature.catalog.CatalogRepository
 import com.example.genksuruh.feature.catalog.CatalogScreen
 import com.example.genksuruh.feature.favorite.FavoriteScreen
 import com.example.genksuruh.feature.profile.EditProfileScreen
@@ -33,7 +37,6 @@ import com.example.genksuruh.feature.tracking.TrackingUpdateScreen
 
 /**
  * Ubah menjadi true sementara untuk menguji Checkout Failed.
- *
  * Setelah pengujian, kembalikan ke false.
  */
 private const val SIMULATE_CHECKOUT_TECHNICAL_FAILURE = false
@@ -48,7 +51,7 @@ fun AppNavGraph(
 
     val goToStart: () -> Unit = {
         navController.navigate(startRouteFor(role)) {
-            popUpTo(startRouteFor(role)) {
+            popUpTo(navController.graph.findStartDestination().id) {
                 inclusive = false
             }
             launchSingleTop = true
@@ -109,13 +112,15 @@ fun AppNavGraph(
             )
         ) {
             CatalogDetailScreen(
-                onBack = {
-                    navController.popBackStack()
-                },
+                onBack = { navController.popBackStack() },
                 onGoToCart = {
-                    navController.navigate(Routes.CART_LIST) {
-                        launchSingleTop = true
-                    }
+                    navController.navigate(Routes.CART_LIST) { launchSingleTop = true }
+                },
+                isAdmin = role == AccountRole.ADMIN,
+                onEditClick = { id -> navController.navigate(Routes.catalogForm(id)) },
+                onBuyNow = { service ->
+                    cartViewModel.buyNow(service)
+                    navController.navigate(Routes.CHECKOUT) { launchSingleTop = true }
                 }
             )
         }
@@ -202,11 +207,17 @@ fun AppNavGraph(
                 },
 
                 onNavigateToCatalog = {
-                    navController.navigate(Routes.CATALOG_LIST)
+                    goToStart()
                 },
 
                 onNavigateToPromo = {
-                    navController.navigate(Routes.PROMO_LIST)
+                    navController.navigate(Routes.PROMO_LIST) {
+                        popUpTo(navController.graph.findStartDestination().id) {
+                            saveState = true
+                        }
+                        launchSingleTop = true
+                        restoreState = true
+                    }
                 }
             )
         }
@@ -291,21 +302,23 @@ fun AppNavGraph(
                 viewModel = cartViewModel,
 
                 onNavigateToHistory = {
-                    navController.navigate(
-                        Routes.TRACKING_LIST
-                    ) {
-                        popUpTo(Routes.CART_LIST)
-                    }
-                },
-
-                onNavigateHome = {
-                    navController.navigate(
-                        Routes.CATALOG_LIST
-                    ) {
-                        popUpTo(Routes.CATALOG_LIST) {
-                            inclusive = true
+                    navController.navigate(Routes.TRACKING_LIST) {
+                        popUpTo(navController.graph.findStartDestination().id) {
+                            saveState = true
                         }
+                        launchSingleTop = true
+                        restoreState = true
                     }
+                    cartViewModel.finishCheckout()
+                },
+                onNavigateHome = {
+                    navController.navigate(startRouteFor(role)) {
+                        popUpTo(navController.graph.findStartDestination().id) {
+                            inclusive = false
+                        }
+                        launchSingleTop = true
+                    }
+                    cartViewModel.finishCheckout()
                 }
             )
         }
@@ -315,11 +328,16 @@ fun AppNavGraph(
         // =====================================================
 
         composable(Routes.TRACKING_LIST) {
+            val context = LocalContext.current
             TrackingScreen(
                 onOrderClick = { id ->
                     navController.navigate(Routes.trackingDetail(id))
                 },
-                onExploreServices = goToStart
+                onChatClick = { id ->
+                    openWhatsApp(context, "085895089845", "Halo Mitra GenkSuruh, saya ingin bertanya mengenai pesanan #$id")
+                },
+                onExploreServices = goToStart,
+                onProfileClick = { navController.navigate(Routes.PROFILE) }
             )
         }
 
@@ -331,7 +349,7 @@ fun AppNavGraph(
                 }
             )
         ) { entry ->
-
+            val context = LocalContext.current
             val statusUpdated by entry.savedStateHandle
                 .getStateFlow("statusUpdated", false)
                 .collectAsStateWithLifecycle()
@@ -348,6 +366,9 @@ fun AppNavGraph(
                 },
                 onReorder = {
                     goToStart()
+                },
+                onChat = { id ->
+                    openWhatsApp(context, "085895089845", "Halo Mitra GenkSuruh, saya ingin bertanya mengenai pesanan #$id")
                 },
                 showStatusUpdatedMessage = statusUpdated,
                 onStatusUpdatedMessageShown = {
@@ -412,7 +433,15 @@ fun AppNavGraph(
         // =====================================================
 
         composable(Routes.FAVORITE_LIST) {
-            FavoriteScreen()
+            FavoriteScreen(
+                onExploreClick = goToStart,
+                onOrderClick = { id ->
+                    CatalogRepository.getById(id)?.let { service ->
+                        cartViewModel.buyNow(service)
+                        navController.navigate(Routes.CHECKOUT) { launchSingleTop = true }
+                    }
+                }
+            )
         }
 
         // =====================================================

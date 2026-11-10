@@ -4,6 +4,7 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.genksuruh.core.model.Service
+import com.example.genksuruh.feature.cart.CartRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -21,19 +22,22 @@ sealed interface CatalogDetailUiState {
 // @JvmOverloads: supaya factory bawaan viewModel() tetap menemukan konstruktor (SavedStateHandle)
 class CatalogDetailViewModel @JvmOverloads constructor(
     savedStateHandle: SavedStateHandle,
-    private val repository: CatalogRepository = CatalogRepository
+    private val repository: CatalogRepository = CatalogRepository,
+    private val cart: CartRepository = CartRepository.shared
 ) : ViewModel() {
 
     private val serviceId: String = checkNotNull(savedStateHandle["serviceId"])
 
-    private val inCart = MutableStateFlow(false)
-
     val uiState: StateFlow<CatalogDetailUiState> = combine(
-        repository.services, inCart
-    ) { list, cart ->
+        repository.services, cart.cartItems
+    ) { list, cartItems ->
         val service = list.find { it.id == serviceId }
-        if (service != null) CatalogDetailUiState.Success(service, cart)
-        else CatalogDetailUiState.NotFound
+        if (service != null) {
+            CatalogDetailUiState.Success(
+                service = service,
+                inCart = cartItems.any { it.id == serviceId }
+            )
+        } else CatalogDetailUiState.NotFound
     }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5_000),
@@ -44,8 +48,7 @@ class CatalogDetailViewModel @JvmOverloads constructor(
         viewModelScope.launch { repository.toggleFavorite(serviceId) }
     }
 
-    // Progress 1: hanya penanda. Nanti dihubungkan ke ViewModel keranjang (Rasyid).
     fun addToCart() {
-        inCart.value = true
+        repository.getById(serviceId)?.let { cart.addService(it) }
     }
 }

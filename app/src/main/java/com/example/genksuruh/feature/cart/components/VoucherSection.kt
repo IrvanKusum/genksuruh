@@ -29,7 +29,6 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -54,7 +53,7 @@ fun VoucherSection(
     code: String,
     status: VoucherStatus,
     message: String?,
-    discountPercent: Int,
+    discountLabel: String,
     minimumTransaction: Long,
     discountAmount: Long,
     subtotal: Long,
@@ -111,7 +110,7 @@ fun VoucherSection(
                 when (status) {
                     VoucherStatus.APPLIED -> AppliedVoucherContent(
                         code = code,
-                        discountPercent = discountPercent,
+                        discountLabel = discountLabel,
                         minimumTransaction = minimumTransaction,
                         discountAmount = discountAmount,
                         onRemoveClick = onRemoveClick
@@ -261,7 +260,7 @@ private fun VoucherInputRow(
 @Composable
 private fun AppliedVoucherContent(
     code: String,
-    discountPercent: Int,
+    discountLabel: String,
     minimumTransaction: Long,
     discountAmount: Long,
     onRemoveClick: () -> Unit
@@ -346,7 +345,7 @@ private fun AppliedVoucherContent(
 
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = "$code • Diskon $discountPercent% Kampus",
+                    text = "$code • $discountLabel",
                     style = MaterialTheme.typography.titleSmall,
                     fontWeight = FontWeight.Bold,
                     color = Success,

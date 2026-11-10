@@ -114,7 +114,7 @@ fun PromoListContent(
         containerColor = PromoColors.Background,
         snackbarHost = { SnackbarHost(snackbarHostState) },
         floatingActionButton = {
-            if (state.isProvider && state.selectedTab == 1) {
+            if (state.isProvider) {
                 ExtendedFloatingActionButton(
                     onClick = onCreate,
                     containerColor = PromoColors.Coral,
@@ -122,7 +122,7 @@ fun PromoListContent(
                 ) {
                     Icon(Icons.Default.Add, contentDescription = null)
                     Spacer(Modifier.width(8.dp))
-                    Text("Buat Promo", fontWeight = FontWeight.SemiBold)
+                    Text("Tambah Promo", fontWeight = FontWeight.SemiBold)
                 }
             }
         }
@@ -277,10 +277,12 @@ private fun LazyListScope.availableSection(
             promo = entry.promo,
             onClick = { onOpenDetail(entry.promo.id) }
         ) {
-            when {
-                entry.promo.isFull -> SmallButton("Habis", enabled = false) {}
-                entry.claimedByMe -> SmallButton("Diklaim", enabled = false) {}
-                else -> SmallButton("Klaim") { actions.onClaimClick(entry.promo.id) }
+            if (!state.isProvider) {
+                when {
+                    entry.promo.isFull -> SmallButton("Habis", enabled = false) {}
+                    entry.claimedByMe -> SmallButton("Diklaim", enabled = false) {}
+                    else -> SmallButton("Klaim") { actions.onClaimClick(entry.promo.id) }
+                }
             }
         }
     }

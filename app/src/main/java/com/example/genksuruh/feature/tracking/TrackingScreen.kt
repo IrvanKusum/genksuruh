@@ -26,6 +26,7 @@ fun TrackingScreen(
     onOrderClick: (String) -> Unit = {},
     onChatClick: (String) -> Unit = {},
     onExploreServices: () -> Unit = {},
+    onProfileClick: () -> Unit = {},
     viewModel: TrackingViewModel = viewModel(),
 ) {
     val role = TrackingSession.role
@@ -44,7 +45,7 @@ fun TrackingScreen(
                     IconButton(onClick = {}) { Icon(Icons.Filled.Tune, contentDescription = "Filter") }
                     // DEMO: ketuk avatar untuk berpindah User <-> Penyedia
 
-                    AvatarButton(onClick = {})
+                    AvatarButton(onClick = onProfileClick)
                 },
             )
         },

@@ -8,7 +8,7 @@ object CartDummyData {
 
     fun defaultItems(): List<CartItem> = listOf(
         CartItem(
-            id = "cart_item_1",
+            id = "svc-1",
             serviceName = "Antar Makanan Kantin FILKOM",
             category = "Antar Makanan",
             providerName = "Dimas Pratama",
@@ -20,7 +20,7 @@ object CartDummyData {
             isSelected = false
         ),
         CartItem(
-            id = "cart_item_2",
+            id = "svc-2",
             serviceName = "Titip Beli Jajan Indomaret",
             category = "Beli Jajan",
             providerName = "Nadia Putri",

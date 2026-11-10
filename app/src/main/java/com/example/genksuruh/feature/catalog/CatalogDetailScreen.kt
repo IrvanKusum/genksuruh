@@ -38,6 +38,8 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
+import androidx.compose.ui.platform.LocalContext
+import com.example.genksuruh.core.util.openWhatsApp
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
@@ -75,6 +77,7 @@ private val ChipGray = Color(0xFFF1F5F9)
 // SCREEN: menghubungkan ViewModel dengan Content
 @Composable
 fun CatalogDetailScreen(
+    onBuyNow: (Service) -> Unit = {},
     onBack: () -> Unit = {},
     onGoToCart: () -> Unit = {},
     isAdmin: Boolean = false,
@@ -116,7 +119,8 @@ fun CatalogDetailScreen(
                 }
             },
             isAdmin = isAdmin,
-            onEditClick = { onEditClick(s.service.id) }
+            onEditClick = { onEditClick(s.service.id)},
+            onBuyNowClick = { onBuyNow(s.service) }
         )
     }
 }
@@ -132,7 +136,8 @@ fun CatalogDetailContent(
     onFavoriteClick: () -> Unit,
     onCartClick: () -> Unit,
     isAdmin: Boolean = false,
-    onEditClick: () -> Unit = {}
+    onEditClick: () -> Unit = {},
+    onBuyNowClick: () -> Unit = {}
 ) {
     val scrollState = rememberScrollState() // state tampilan murni (posisi scroll)
 
@@ -143,7 +148,9 @@ fun CatalogDetailContent(
                 price = service.price,
                 inCart = inCart,
                 isAdmin = isAdmin,
-                onClick = if (isAdmin) onEditClick else onCartClick
+                onEditClick = onEditClick,
+                onCartClick = onCartClick,
+                onBuyNowClick = onBuyNowClick
             )
         },
     ) { innerPadding ->
@@ -422,8 +429,9 @@ private fun ProviderCard(service: Service) {
                     Text("${service.rating}", style = MaterialTheme.typography.bodySmall)
                 }
             }
+            val context = LocalContext.current
             OutlinedButton(
-                onClick = { /* nanti: hubungi penyedia */ },
+                onClick = { openWhatsApp(context, "085895089845", "Halo ${service.providerName}, saya ingin bertanya tentang jasa \"${service.title}\" di GenkSuruh.") },
                 contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)
             ) {
                 Text("Hubungi", style = MaterialTheme.typography.labelLarge)
@@ -437,7 +445,9 @@ private fun DetailBottomBar(
     price: Int,
     inCart: Boolean,
     isAdmin: Boolean,
-    onClick: () -> Unit
+    onEditClick: () -> Unit,
+    onCartClick: () -> Unit,
+    onBuyNowClick: () -> Unit
 ) {
     Surface(color = Color.White, shadowElevation = 12.dp) {
         Row(
@@ -459,27 +469,50 @@ private fun DetailBottomBar(
                     color = MaterialTheme.colorScheme.primary
                 )
             }
-            Spacer(Modifier.size(16.dp))
-            Button(
-                onClick = onClick,
-                modifier = Modifier.weight(1f).height(52.dp),
-                shape = RoundedCornerShape(14.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = Secondary500)
-            ) {
-                Icon(
-                    if (isAdmin) Icons.Rounded.Edit else Icons.Rounded.ShoppingCart,
-                    null,
-                    modifier = Modifier.size(20.dp)
-                )
+            Spacer(Modifier.size(12.dp))
+
+            if (isAdmin) {
+                Button(
+                    onClick = onEditClick,
+                    modifier = Modifier.weight(1f).height(52.dp),
+                    shape = RoundedCornerShape(14.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = Secondary500)
+                ) {
+                    Icon(Icons.Rounded.Edit, null, modifier = Modifier.size(20.dp))
+                    Spacer(Modifier.size(8.dp))
+                    Text("Edit Jasa", fontWeight = FontWeight.SemiBold)
+                }
+            } else {
+                OutlinedButton(
+                    onClick = onCartClick,
+                    modifier = Modifier.weight(1f).height(52.dp),
+                    shape = RoundedCornerShape(14.dp),
+                    contentPadding = PaddingValues(horizontal = 8.dp)
+                ) {
+                    Icon(Icons.Rounded.ShoppingCart, null, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.size(6.dp))
+                    Text(
+                        if (inCart) "Lihat Keranjang" else "+ Keranjang",
+                        style = MaterialTheme.typography.labelLarge,
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 1
+                    )
+                }
                 Spacer(Modifier.size(8.dp))
-                Text(
-                    when {
-                        isAdmin -> "Edit Jasa"
-                        inCart -> "Lihat Keranjang"
-                        else -> "Tambah ke Keranjang"
-                    },
-                    fontWeight = FontWeight.SemiBold
-                )
+                Button(
+                    onClick = onBuyNowClick,
+                    modifier = Modifier.weight(1f).height(52.dp),
+                    shape = RoundedCornerShape(14.dp),
+                    contentPadding = PaddingValues(horizontal = 8.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = Secondary500)
+                ) {
+                    Text(
+                        "Pesan Sekarang",
+                        style = MaterialTheme.typography.labelLarge,
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 1
+                    )
+                }
             }
         }
     }

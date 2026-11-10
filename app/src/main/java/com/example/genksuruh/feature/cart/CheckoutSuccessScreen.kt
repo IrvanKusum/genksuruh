@@ -117,7 +117,7 @@ fun CheckoutSuccessScreen(
                 if (hasVoucher) {
                     UsedVoucherCard(
                         code = uiState.voucherCode,
-                        discountPercent = uiState.voucherDiscountPercent,
+                        discountLabel = uiState.voucherLabel,
                         discountAmount = discount
                     )
 
@@ -327,7 +327,7 @@ private fun SuccessTitle(
 @Composable
 private fun UsedVoucherCard(
     code: String,
-    discountPercent: Int,
+    discountLabel: String,
     discountAmount: Long
 ) {
     Card(
@@ -371,7 +371,7 @@ private fun UsedVoucherCard(
                     )
 
                     Text(
-                        text = "Diskon $discountPercent% Kampus",
+                        text = discountLabel,
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )

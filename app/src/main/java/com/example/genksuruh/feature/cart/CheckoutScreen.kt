@@ -149,7 +149,7 @@ fun CheckoutScreen(
                         code = uiState.voucherCode,
                         status = uiState.voucherStatus,
                         message = uiState.voucherMessage,
-                        discountPercent = uiState.voucherDiscountPercent,
+                        discountLabel = uiState.voucherLabel,
                         minimumTransaction = uiState.voucherMinimumTransaction,
                         discountAmount = uiState.voucherDiscountAmount,
                         subtotal = uiState.subtotal,

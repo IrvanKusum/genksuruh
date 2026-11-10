@@ -14,6 +14,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.currentBackStackEntryAsState
 import com.example.genksuruh.core.auth.AccountRole
@@ -53,13 +54,18 @@ fun AppBottomBar(navController: NavHostController, role: AccountRole) {
 
     NavigationBar {
         bottomItemsFor(role).forEach { item ->
+            val selected = currentRoute == item.route
             NavigationBarItem(
-                selected = currentRoute == item.route,
+                selected = selected,
                 onClick = {
-                    navController.navigate(item.route) {
-                        popUpTo(startRouteFor(role)) { saveState = true }
-                        launchSingleTop = true
-                        restoreState = true
+                    if (!selected) {
+                        navController.navigate(item.route) {
+                            popUpTo(navController.graph.findStartDestination().id) {
+                                saveState = true
+                            }
+                            launchSingleTop = true
+                            restoreState = true
+                        }
                     }
                 },
                 icon = { Icon(item.icon, contentDescription = item.label) },

@@ -61,6 +61,9 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.genksuruh.core.auth.LocalAccountName
 import com.example.genksuruh.core.theme.Secondary500
 import com.example.genksuruh.feature.profile.ProfileEntryButton
+import android.widget.Toast
+import androidx.compose.ui.platform.LocalContext
+import com.example.genksuruh.feature.cart.CartRepository
 
 private val TextMuted = Color(0xFF64748B)
 
@@ -74,6 +77,7 @@ fun CatalogScreen(
     viewModel: CatalogViewModel = viewModel()
 ) {
     val state by viewModel.uiState.collectAsState()
+    val context = LocalContext.current
 
     Box(
         modifier = Modifier
@@ -82,9 +86,9 @@ fun CatalogScreen(
     ) {
         LazyVerticalGrid(
             columns = GridCells.Fixed(2),
-            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 96.dp),
+            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 96.dp),
             horizontalArrangement = Arrangement.spacedBy(12.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
             modifier = Modifier.fillMaxSize()
         ) {
             item(span = { GridItemSpan(maxLineSpan) }) {
@@ -127,7 +131,17 @@ fun CatalogScreen(
                         ServiceCard(
                             service = service,
                             onClick = { onServiceClick(service.id) },
-                            onFavoriteClick = { viewModel.toggleFavorite(service.id) }
+                            onFavoriteClick = { viewModel.toggleFavorite(service.id) },
+                            onCartClick = if (showAddButton) null else {
+                                {
+                                    val added = CartRepository.shared.addService(service)
+                                    Toast.makeText(
+                                        context,
+                                        if (added) "Ditambahkan ke keranjang" else "Sudah ada di keranjang",
+                                        Toast.LENGTH_SHORT
+                                    ).show()
+                                }
+                            }
                         )
                     }
                     item(span = { GridItemSpan(maxLineSpan) }) { TrustBanner() }
@@ -186,14 +200,14 @@ private fun CatalogHeader(onProfileClick: () -> Unit) {
             ProfileEntryButton(onClick = onProfileClick)
         }
 
-        Spacer(Modifier.height(24.dp))
+        Spacer(Modifier.height(8.dp))
 
         Text(
             if (firstName.isNotEmpty()) "Halo, $firstName \uD83D\uDC4B" else "Halo \uD83D\uDC4B",
             style = MaterialTheme.typography.bodyMedium,
             color = TextMuted
         )
-        Spacer(Modifier.height(4.dp))
+        Spacer(Modifier.height(2.dp))
         Text("Mau suruh apa hari ini?", style = MaterialTheme.typography.headlineMedium)
     }
 }

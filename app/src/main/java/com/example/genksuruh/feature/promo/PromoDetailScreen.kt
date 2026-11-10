@@ -194,7 +194,7 @@ private fun DetailBottomBar(
                 ) {
                     Text("Hapus")
                 }
-            } else {
+            } else if (!state.isProvider) {
                 when (state.claimButtonState) {
                     ClaimButtonState.CLAIMED -> OutlinedButton(
                         onClick = onOpenVouchers,

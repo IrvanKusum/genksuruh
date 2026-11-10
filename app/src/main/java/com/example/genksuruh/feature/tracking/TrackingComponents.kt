@@ -49,7 +49,6 @@ fun TrackingTopBar(
     actions: @Composable RowScope.() -> Unit = {},
 ) {
     TopAppBar(
-        modifier = Modifier.statusBarsPadding(),
         title = { Text(title, style = MaterialTheme.typography.titleLarge) },
         navigationIcon = {
             if (onBack != null) {
