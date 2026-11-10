@@ -7,6 +7,7 @@ import androidx.compose.runtime.setValue
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.genksuruh.core.auth.AuthRepository
 import com.example.genksuruh.core.model.Service
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -14,6 +15,9 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+
+// Membaca rentang jam dari teks, contoh: "08.00 - 16.00"
+private val TIME_RANGE = Regex("""(\d{1,2})[.:](\d{2})\s*-\s*(\d{1,2})[.:](\d{2})""")
 
 sealed interface PhotoState {
     object Empty : PhotoState
@@ -41,10 +45,20 @@ data class FormUiState(
 
 class CatalogFormViewModel @JvmOverloads constructor(
     savedStateHandle: SavedStateHandle,
-    private val repository: CatalogRepository = CatalogRepository
+    private val repository: CatalogRepository = CatalogRepository,
+    private val auth: AuthRepository = AuthRepository
 ) : ViewModel() {
 
     private val editId: String? = savedStateHandle["serviceId"]
+
+    // Bagian hari dari jam lama ("Senin - Jumat"), supaya tidak hilang saat edit.
+    // Harus dideklarasikan SEBELUM blok init di bawah.
+    private var dayLabel: String = "Setiap hari"
+
+    // Jam lama yang tidak berbentuk rentang (mis. "Sesuai jadwal acara") dipertahankan
+    // apa adanya selama jam tidak diubah.
+    private var originalHours: String? = null
+    private var timeEdited = false
 
     // Teks TextField -> mutableStateOf (dipakai validasi dan dikirim ke Repository)
     var title by mutableStateOf("")
@@ -64,12 +78,30 @@ class CatalogFormViewModel @JvmOverloads constructor(
                 title = s.title
                 priceText = s.price.toString()
                 description = s.description
+
+                // Jam lama, contoh: "Senin - Jumat, 08.00 - 16.00"
+                var start = "08:00"
+                var end = "16:00"
+                val match = TIME_RANGE.find(s.hours)
+                if (match != null) {
+                    val (h1, m1, h2, m2) = match.destructured
+                    start = "${h1.padStart(2, '0')}:$m1"
+                    end = "${h2.padStart(2, '0')}:$m2"
+                    dayLabel = s.hours.substring(0, match.range.first)
+                        .trim().trimEnd(',').trim()
+                        .ifBlank { "Setiap hari" }
+                } else {
+                    originalHours = s.hours
+                }
+
                 _uiState.value = FormUiState(
                     isEdit = true,
                     photo = if (s.imageRes != null || s.imageUrl != null)
                         PhotoState.Uploaded(s.imageUrl, s.imageRes) else PhotoState.Empty,
                     category = s.category,
-                    areas = s.areas.toSet()
+                    areas = s.areas.toSet(),
+                    startTime = start,
+                    endTime = end
                 )
             }
         }
@@ -103,8 +135,15 @@ class CatalogFormViewModel @JvmOverloads constructor(
         }
     }
 
-    fun onStartTimeChange(v: String) { _uiState.update { it.copy(startTime = v) } }
-    fun onEndTimeChange(v: String) { _uiState.update { it.copy(endTime = v) } }
+    fun onStartTimeChange(v: String) {
+        timeEdited = true
+        _uiState.update { it.copy(startTime = v) }
+    }
+
+    fun onEndTimeChange(v: String) {
+        timeEdited = true
+        _uiState.update { it.copy(endTime = v) }
+    }
 
     // ---------- Foto ----------
 
@@ -162,7 +201,18 @@ class CatalogFormViewModel @JvmOverloads constructor(
             try {
                 val old = editId?.let { repository.getById(it) }
                 val photo = s.photo as PhotoState.Uploaded
-                val hours = "Setiap hari, ${s.startTime.replace(':', '.')} - ${s.endTime.replace(':', '.')}"
+
+                // Jam: pakai teks lama jika tidak bisa dibaca dan tidak diubah user,
+                // selain itu susun dari hari lama + jam yang dipilih.
+                val keepOldHours = originalHours
+                val hours = if (keepOldHours != null && !timeEdited) {
+                    keepOldHours
+                } else {
+                    "$dayLabel, ${s.startTime.replace(':', '.')} - ${s.endTime.replace(':', '.')}"
+                }
+
+                // Pemilik jasa baru = akun yang sedang login
+                val owner = auth.account.value
 
                 repository.save(
                     Service(
@@ -173,8 +223,8 @@ class CatalogFormViewModel @JvmOverloads constructor(
                         description = description.trim(),
                         areas = s.areas.toList(),
                         hours = hours,
-                        providerId = old?.providerId ?: CatalogRepository.CURRENT_USER_ID,
-                        providerName = old?.providerName ?: CatalogRepository.CURRENT_USER_NAME,
+                        providerId = old?.providerId ?: owner?.id ?: CatalogRepository.CURRENT_USER_ID,
+                        providerName = old?.providerName ?: owner?.name ?: CatalogRepository.CURRENT_USER_NAME,
                         rating = old?.rating ?: 0.0,
                         reviewCount = old?.reviewCount ?: 0,
                         imageRes = photo.imageRes,
