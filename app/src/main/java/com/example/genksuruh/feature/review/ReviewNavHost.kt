@@ -15,9 +15,12 @@ object ReviewRoutes {
 }
 
 @Composable
-fun ReviewNavHost(onExit: () -> Unit = {}) {
+fun ReviewNavHost(orderId: String, onExit: () -> Unit = {}) {
     val nav = rememberNavController()
-    val vm: ReviewViewModel = viewModel()
+    val vm: ReviewViewModel = viewModel(
+        key = "review_$orderId",
+        factory = ReviewViewModelFactory(orderId),
+    )
 
     NavHost(nav, startDestination = ReviewRoutes.LIST) {
         composable(ReviewRoutes.LIST) {
@@ -42,6 +45,5 @@ fun ReviewNavHost(onExit: () -> Unit = {}) {
     }
 }
 
-// Pintu masuk yang dipanggil NavHost utama
 @Composable
-fun ReviewScreen(onExit: () -> Unit = {}) = ReviewNavHost(onExit)
+fun ReviewScreen(orderId: String = "ord_123", onExit: () -> Unit = {}) = ReviewNavHost(orderId, onExit)

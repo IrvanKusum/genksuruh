@@ -7,6 +7,7 @@ data class Review(
     val comment: String,
     val date: String,
     val isOwn: Boolean = false,
+    val orderId: String? = null,
 )
 
 enum class DeleteState { Idle, Confirm, Loading, Error }

@@ -20,7 +20,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.genksuruh.ui.theme.*
+import com.example.genksuruh.core.theme.*
 import kotlinx.coroutines.launch
 
 @Composable
@@ -61,9 +61,16 @@ fun ReviewFormScreen(
     Scaffold(
         containerColor = ScreenBg,
         topBar = {
-            Surface(color = Color.White, shadowElevation = 2.dp) {
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                color = Color.White,
+                shadowElevation = 2.dp
+            ) {
                 Row(
-                    Modifier.statusBarsPadding().padding(horizontal = 4.dp, vertical = 8.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .statusBarsPadding()
+                        .padding(horizontal = 4.dp, vertical = 8.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     IconButton(onClick = onClose, enabled = !isSending) {
@@ -132,7 +139,7 @@ fun ReviewFormScreen(
                 Box(
                     Modifier.size(56.dp).clip(RoundedCornerShape(12.dp)).background(Color.White),
                     contentAlignment = Alignment.Center,
-                ) { Text("🍱", fontSize = 28.sp) } // ganti dengan foto asli nanti
+                ) { Text(vm.serviceEmoji, fontSize = 28.sp) }
                 Spacer(Modifier.width(12.dp))
                 Column {
                     Text(vm.serviceName, style = MaterialTheme.typography.titleSmall)

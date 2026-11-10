@@ -1,15 +1,24 @@
 package com.example.genksuruh.feature.promo
 
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.Modifier
+import androidx.compose.runtime.LaunchedEffect
+import com.example.genksuruh.core.auth.AccountRole
+import com.example.genksuruh.core.auth.LocalAccountName
+import com.example.genksuruh.core.auth.LocalAccountRole
 
+/**
+ * Pintu masuk fitur Promo, dipanggil dari AppNavGraph.
+ * Akun ADMIN otomatis masuk mode Penyedia (Promo Saya).
+ */
 @Composable
-fun PromoScreen() {
-    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        Text("Keranjang")
+fun PromoScreen(onOpenProfile: () -> Unit = {}) {
+    val role = LocalAccountRole.current
+    val name = LocalAccountName.current
+
+    LaunchedEffect(role, name) {
+        PromoModule.session.setProviderName(name)
+        PromoModule.session.setProviderMode(role == AccountRole.ADMIN)
     }
+
+    PromoNavHost(onOpenProfile = onOpenProfile)
 }

@@ -31,7 +31,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
-import com.example.genksuruh.ui.theme.*
+import com.example.genksuruh.core.theme.*
 import java.util.Locale
 
 fun formatAvg(v: Double): String = String.format(Locale("id", "ID"), "%.1f", v)

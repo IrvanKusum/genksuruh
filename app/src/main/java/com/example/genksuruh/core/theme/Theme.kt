@@ -1,4 +1,4 @@
-package com.example.genksuruh.ui.theme
+package com.example.genksuruh.core.theme
 
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.lightColorScheme
