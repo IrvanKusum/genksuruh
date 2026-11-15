@@ -1,3 +1,4 @@
+
 package com.example.genksuruh.feature.review
 
 import androidx.compose.foundation.layout.*
@@ -29,7 +30,7 @@ fun ReviewListScreen(
     val snackbarHost = remember { SnackbarHostState() }
     var selectedReview by remember { mutableStateOf<Review?>(null) }
 
-    // Dengarkan pesan (sukses kirim / hapus) dan tampilkan sebagai snackbar hijau
+    // Mendengarkan pesan sukses kirim / hapus
     LaunchedEffect(Unit) {
         vm.messages.collect { msg ->
             val result = snackbarHost.showSnackbar(
@@ -37,34 +38,65 @@ fun ReviewListScreen(
                 actionLabel = msg.actionLabel,
                 duration = SnackbarDuration.Short,
             )
-            if (result == SnackbarResult.ActionPerformed) vm.undoDelete()
+
+            if (result == SnackbarResult.ActionPerformed) {
+                vm.undoDelete()
+            }
         }
     }
 
     Scaffold(
         containerColor = ScreenBg,
+
         topBar = {
-            Surface(color = Color.White, shadowElevation = 2.dp) {
+            Surface(
+                color = Color.White,
+                shadowElevation = 2.dp
+            ) {
                 Row(
-                    Modifier.statusBarsPadding().padding(horizontal = 4.dp, vertical = 8.dp),
+                    Modifier
+                        .statusBarsPadding()
+                        .padding(horizontal = 4.dp, vertical = 8.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, "Kembali")
+                        Icon(
+                            Icons.AutoMirrored.Filled.ArrowBack,
+                            "Kembali"
+                        )
                     }
+
                     Column(Modifier.weight(1f)) {
-                        Text("Ulasan", style = MaterialTheme.typography.titleMedium)
-                        Text(vm.serviceName, style = MaterialTheme.typography.bodySmall, color = TextGray)
+                        Text(
+                            "Ulasan",
+                            style = MaterialTheme.typography.titleMedium
+                        )
+
+                        Text(
+                            vm.serviceName,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = TextGray
+                        )
                     }
-                    IconButton(onClick = { }) {
-                        Icon(Icons.AutoMirrored.Filled.Sort, "Urutkan", tint = OceanBlue)
+
+                    IconButton(onClick = { /* TODO: Sort */ }) {
+                        Icon(
+                            Icons.AutoMirrored.Filled.Sort,
+                            "Urutkan",
+                            tint = OceanBlue
+                        )
                     }
                 }
             }
         },
+
         bottomBar = {
-            Surface(color = Color.White, shadowElevation = 8.dp) {
+            Surface(
+                color = Color.White,
+                shadowElevation = 8.dp
+            ) {
                 val mine = state.myReview
+
                 Button(
                     onClick = if (mine != null) onEdit else onWrite,
                     modifier = Modifier
@@ -72,17 +104,27 @@ fun ReviewListScreen(
                         .padding(16.dp)
                         .fillMaxWidth()
                         .height(52.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = Coral),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Coral
+                    ),
                 ) {
-                    Icon(Icons.Default.Edit, null, modifier = Modifier.size(18.dp))
+                    Icon(
+                        Icons.Default.Edit,
+                        null,
+                        modifier = Modifier.size(18.dp)
+                    )
+
                     Spacer(Modifier.width(8.dp))
+
                     Text(
-                        if (mine != null) "Edit Ulasan Kamu" else "Tulis Ulasan",
+                        if (mine != null) "Edit Ulasan Kamu"
+                        else "Tulis Ulasan",
                         fontWeight = FontWeight.SemiBold,
                     )
                 }
             }
         },
+
         snackbarHost = {
             SnackbarHost(snackbarHost) { data ->
                 Snackbar(
@@ -94,65 +136,193 @@ fun ReviewListScreen(
             }
         },
     ) { padding ->
+
+        // =====================================
+        // KONDISI LOADING, ERROR, DAN DATA
+        // =====================================
+
         if (state.isLoading) {
-            LoadingSkeleton(Modifier.padding(padding))
+
+            LoadingSkeleton(
+                Modifier.padding(padding)
+            )
+
+        } else if (state.errorMessage != null) {
+
+            // Tampilan ketika terjadi error Supabase
+            Column(
+                modifier = Modifier
+                    .padding(padding)
+                    .fillMaxSize()
+                    .padding(24.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center
+            ) {
+                Text(
+                    text = state.errorMessage ?: "Terjadi kesalahan.",
+                    color = DangerRed,
+                    textAlign = TextAlign.Center
+                )
+
+                Spacer(Modifier.height(16.dp))
+
+                Button(
+                    onClick = { vm.refresh() },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Coral
+                    )
+                ) {
+                    Text("Coba Lagi")
+                }
+            }
+
         } else {
+
+            // Tampilan daftar ulasan
             LazyColumn(
-                modifier = Modifier.padding(padding).fillMaxSize(),
+                modifier = Modifier
+                    .padding(padding)
+                    .fillMaxSize(),
                 contentPadding = PaddingValues(16.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                item { RatingSummaryCard(state.average, state.total, state.distribution) }
+
                 item {
-                    StarFilterChips(state.distribution, state.total, state.filter, vm::selectFilter)
+                    RatingSummaryCard(
+                        state.average,
+                        state.total,
+                        state.distribution
+                    )
                 }
+
                 item {
-                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    StarFilterChips(
+                        state.distribution,
+                        state.total,
+                        state.filter,
+                        vm::selectFilter
+                    )
+                }
+
+                item {
+                    Row(
+                        Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
                         Text(
                             "${state.filterCount} ulasan",
                             style = MaterialTheme.typography.titleSmall,
                             modifier = Modifier.weight(1f),
                         )
-                        Text("Terbaru ▾", style = MaterialTheme.typography.labelMedium, color = OceanBlue)
+
+                        Text(
+                            "Terbaru ▾",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = OceanBlue
+                        )
                     }
                 }
 
-                val list = state.visibleReviews
-                if (list.isEmpty()) {
+                val reviewList = state.visibleReviews
+
+                if (reviewList.isEmpty()) {
+
                     item {
                         EmptyState(
                             filter = state.filter,
                             onWrite = onWrite,
-                            onReset = { vm.selectFilter(null) },
+                            onReset = {
+                                vm.selectFilter(null)
+                            },
                         )
                     }
+
                 } else {
-                    items(list, key = { it.id }) { review ->
-                        ReviewCard(review, onClick = { selectedReview = review }, onEdit = onEdit, onDelete = vm::requestDelete)
+
+                    items(
+                        reviewList,
+                        key = { it.id }
+                    ) { review ->
+
+                        ReviewCard(
+                            review,
+                            onClick = {
+                                selectedReview = review
+                            },
+                            onEdit = onEdit,
+                            onDelete = vm::requestDelete
+                        )
                     }
                 }
             }
         }
     }
 
+    // =====================================
+    // DETAIL REVIEW
+    // =====================================
+
     selectedReview?.let { review ->
+
         AlertDialog(
-            onDismissRequest = { selectedReview = null },
-            title = { Text("Ulasan ${review.name}") },
+            onDismissRequest = {
+                selectedReview = null
+            },
+
+            title = {
+                Text("Ulasan ${review.name}")
+            },
+
             text = {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text(review.date, color = TextGray, style = MaterialTheme.typography.bodySmall)
-                    StarRow(review.rating, 18.dp)
-                    Text(review.comment, style = MaterialTheme.typography.bodyMedium)
-                    if (review.isOwn) Text("Ini adalah ulasan kamu", color = OceanBlue, style = MaterialTheme.typography.labelMedium)
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text(
+                        review.date,
+                        color = TextGray,
+                        style = MaterialTheme.typography.bodySmall
+                    )
+
+                    StarRow(
+                        review.rating,
+                        18.dp
+                    )
+
+                    Text(
+                        review.comment,
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+
+                    if (review.isOwn) {
+                        Text(
+                            "Ini adalah ulasan kamu",
+                            color = OceanBlue,
+                            style = MaterialTheme.typography.labelMedium
+                        )
+                    }
                 }
             },
-            confirmButton = { TextButton(onClick = { selectedReview = null }) { Text("Tutup") } },
+
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        selectedReview = null
+                    }
+                ) {
+                    Text("Tutup")
+                }
+            },
+
             containerColor = Color.White,
         )
     }
 
+    // =====================================
+    // DIALOG HAPUS REVIEW
+    // =====================================
+
     if (state.deleteState != DeleteState.Idle) {
+
         DeleteReviewDialog(
             serviceName = vm.serviceName,
             state = state.deleteState,
@@ -162,39 +332,103 @@ fun ReviewListScreen(
     }
 }
 
+// =========================================
+// LOADING SKELETON
+// =========================================
+
 @Composable
 private fun LoadingSkeleton(modifier: Modifier) {
-    Column(modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        SkeletonBox(Modifier.fillMaxWidth().height(130.dp))
-        SkeletonBox(Modifier.fillMaxWidth(0.7f).height(36.dp))
-        repeat(3) { SkeletonBox(Modifier.fillMaxWidth().height(110.dp)) }
+    Column(
+        modifier.padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        SkeletonBox(
+            Modifier
+                .fillMaxWidth()
+                .height(130.dp)
+        )
+
+        SkeletonBox(
+            Modifier
+                .fillMaxWidth(0.7f)
+                .height(36.dp)
+        )
+
+        repeat(3) {
+            SkeletonBox(
+                Modifier
+                    .fillMaxWidth()
+                    .height(110.dp)
+            )
+        }
     }
 }
 
+// =========================================
+// EMPTY STATE
+// =========================================
+
 @Composable
-private fun EmptyState(filter: Int?, onWrite: () -> Unit, onReset: () -> Unit) {
+private fun EmptyState(
+    filter: Int?,
+    onWrite: () -> Unit,
+    onReset: () -> Unit
+) {
     Column(
-        Modifier.fillMaxWidth().padding(vertical = 32.dp),
+        Modifier
+            .fillMaxWidth()
+            .padding(vertical = 32.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Icon(Icons.Default.Star, null, tint = StarEmpty, modifier = Modifier.size(72.dp))
+        Icon(
+            Icons.Default.Star,
+            null,
+            tint = StarEmpty,
+            modifier = Modifier.size(72.dp)
+        )
+
         Spacer(Modifier.height(12.dp))
+
         if (filter == null) {
-            Text("Belum ada ulasan", style = MaterialTheme.typography.titleMedium)
+
+            Text(
+                "Belum ada ulasan",
+                style = MaterialTheme.typography.titleMedium
+            )
+
             Text(
                 "Jadilah yang pertama mengulas jasa ini",
                 style = MaterialTheme.typography.bodySmall,
                 color = TextGray,
                 textAlign = TextAlign.Center,
             )
+
             Spacer(Modifier.height(16.dp))
-            Button(onClick = onWrite, colors = ButtonDefaults.buttonColors(containerColor = Coral)) {
+
+            Button(
+                onClick = onWrite,
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = Coral
+                )
+            ) {
                 Text("Tulis Ulasan")
             }
+
         } else {
-            Text("Belum ada ulasan $filter bintang", style = MaterialTheme.typography.titleMedium)
+
+            Text(
+                "Belum ada ulasan $filter bintang",
+                style = MaterialTheme.typography.titleMedium
+            )
+
             Spacer(Modifier.height(16.dp))
-            OutlinedButton(onClick = onReset) { Text("Reset Filter", color = OceanBlue) }
+
+            OutlinedButton(onClick = onReset) {
+                Text(
+                    "Reset Filter",
+                    color = OceanBlue
+                )
+            }
         }
     }
 }

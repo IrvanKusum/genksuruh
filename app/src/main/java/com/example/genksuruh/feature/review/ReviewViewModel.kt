@@ -1,14 +1,10 @@
+
 package com.example.genksuruh.feature.review
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
-import com.example.genksuruh.feature.tracking.FakeTrackingRepository
-import com.example.genksuruh.feature.tracking.Order
-import com.example.genksuruh.feature.tracking.ServiceCategory
-import com.example.genksuruh.feature.tracking.toRupiah
 import kotlinx.coroutines.channels.Channel
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -22,42 +18,45 @@ data class ReviewUiState(
     val filter: Int? = null,
     val isLoading: Boolean = true,
     val deleteState: DeleteState = DeleteState.Idle,
+    val order: ReviewOrderDto? = null,
+    val errorMessage: String? = null
 ) {
-    val total: Int get() = (1..5).sumOf { distribution[it] ?: 0 }
+    val total: Int
+        get() = reviews.size
+
     val average: Double
-        get() = if (total == 0) 0.0 else (1..5).sumOf { star -> star * (distribution[star] ?: 0) }.toDouble() / total
+        get() = if (reviews.isEmpty()) {
+            0.0
+        } else {
+            reviews.sumOf { it.rating }.toDouble() / reviews.size
+        }
+
     val visibleReviews: List<Review>
-        get() = if (filter == null) reviews else reviews.filter { it.rating == filter }
-    val filterCount: Int get() = if (filter == null) total else distribution[filter] ?: 0
-    val myReview: Review? get() = reviews.firstOrNull { it.isOwn }
+        get() = if (filter == null) {
+            reviews
+        } else {
+            reviews.filter { it.rating == filter }
+        }
+
+    val filterCount: Int
+        get() = if (filter == null) {
+            total
+        } else {
+            distribution[filter] ?: 0
+        }
+
+    val myReview: Review?
+        get() = reviews.firstOrNull {
+            it.isOwn && it.orderId == order?.id
+        }
 }
 
 class ReviewViewModel(
     val orderId: String,
-    private val repository: ReviewRepository = ReviewRepository,
+    private val repository: ReviewRepository = SupabaseReviewRepository
 ) : ViewModel() {
 
-    val order: Order? = FakeTrackingRepository.findOrder(orderId)
-    val serviceName: String = order?.serviceName ?: "Pesanan tidak ditemukan"
-    val providerName: String = order?.providerName ?: "-"
-    val servicePrice: String = order?.totalPrice?.toRupiah() ?: "-"
-    val serviceEmoji: String = when (order?.category) {
-        ServiceCategory.ANTAR_MAKANAN -> "🍱"
-        ServiceCategory.SERVIS_IT -> "💻"
-        ServiceCategory.EDUKASI -> "📚"
-        ServiceCategory.KREATIF -> "🎨"
-        ServiceCategory.HOME_SERVICE -> "🛠️"
-        null -> "⭐"
-    }
-
-    var simulateFailure: Boolean = false
-
-    private val _state = MutableStateFlow(
-        ReviewUiState(
-            reviews = repository.getInitialReviews(orderId, serviceName),
-            distribution = repository.getInitialDistribution(serviceName, orderId),
-        )
-    )
+    private val _state = MutableStateFlow(ReviewUiState())
     val state: StateFlow<ReviewUiState> = _state.asStateFlow()
 
     private val _messages = Channel<UiMessage>(Channel.BUFFERED)
@@ -65,117 +64,275 @@ class ReviewViewModel(
 
     private var lastDeleted: Review? = null
 
+    // Informasi jasa sementara berdasarkan data yang tersedia.
+    // Nama provider dan harga belum tersedia pada DTO orders.
+    val serviceName: String
+        get() = state.value.order?.let {
+            "Jasa ${it.serviceId.take(8)}"
+        } ?: "Informasi jasa"
+
+    val providerName: String = "-"
+    val servicePrice: String = "-"
+    val serviceEmoji: String = "⭐"
+
     init {
+        refresh()
+    }
+
+    /**
+     * Mengambil pesanan dan ulasan dari Supabase.
+     */
+    fun refresh() {
         viewModelScope.launch {
-            delay(650)
-            _state.update { it.copy(isLoading = false) }
+            _state.update {
+                it.copy(
+                    isLoading = true,
+                    errorMessage = null
+                )
+            }
+
+            try {
+                val order = repository.getOrderForReview(orderId)
+                    ?: throw IllegalStateException(
+                        "Pesanan tidak ditemukan, bukan milik kamu, atau belum berstatus SELESAI."
+                    )
+
+                val reviews = repository.getReviews(order.serviceId)
+
+                _state.update {
+                    it.copy(
+                        order = order,
+                        reviews = reviews,
+                        distribution = calculateDistribution(reviews),
+                        isLoading = false,
+                        errorMessage = null
+                    )
+                }
+
+            } catch (e: Exception) {
+                _state.update {
+                    it.copy(
+                        isLoading = false,
+                        errorMessage = e.message
+                            ?: "Gagal mengambil data ulasan."
+                    )
+                }
+            }
+        }
+    }
+
+    /**
+     * Menghitung jumlah ulasan setiap bintang.
+     */
+    private fun calculateDistribution(
+        reviews: List<Review>
+    ): Map<Int, Int> {
+        return (1..5).associateWith { star ->
+            reviews.count { it.rating == star }
         }
     }
 
     fun selectFilter(star: Int?) {
-        _state.update { it.copy(filter = star?.takeIf { value -> value in 1..5 }) }
+        _state.update {
+            it.copy(
+                filter = star?.takeIf { value -> value in 1..5 }
+            )
+        }
     }
 
-    fun findReview(id: String): Review? = _state.value.reviews.firstOrNull { it.id == id }
+    fun findReview(id: String): Review? {
+        return _state.value.reviews.firstOrNull {
+            it.id == id
+        }
+    }
 
-    fun submitReview(rating: Int, comment: String, onResult: (Boolean) -> Unit) {
+    /**
+     * INSERT atau UPDATE ulasan.
+     */
+    fun submitReview(
+        rating: Int,
+        comment: String,
+        onResult: (Boolean) -> Unit
+    ) {
         val cleanComment = comment.trim()
-        if (order == null || rating !in 1..5 || cleanComment.length !in 10..300) {
+
+        if (
+            rating !in 1..5 ||
+            cleanComment.length !in 10..300
+        ) {
             onResult(false)
             return
         }
 
         viewModelScope.launch {
-            delay(450)
-            if (simulateFailure) {
-                onResult(false)
-                return@launch
-            }
-
-            val current = _state.value.myReview
-            val savedReview = if (current == null) {
-                Review(
-                    id = "rev-${System.currentTimeMillis()}", name = "Ahsana", rating = rating,
-                    comment = cleanComment, date = "Hari ini", isOwn = true,
+            try {
+                val savedReview = repository.submitReview(
                     orderId = orderId,
+                    rating = rating,
+                    comment = cleanComment
                 )
-            } else {
-                current.copy(rating = rating, comment = cleanComment, date = "Hari ini", isOwn = true)
-            }
 
-            // Simpan ke repository bersama agar tidak hilang saat ViewModel dibuat ulang.
-            repository.saveOwnReview(savedReview)
+                val updatedReviews = _state.value.reviews
+                    .filterNot { it.orderId == orderId } +
+                        savedReview
 
-            _state.update { old ->
-                val counts = old.distribution.toMutableMap()
-                if (current == null) {
-                    counts[rating] = (counts[rating] ?: 0) + 1
-                } else if (current.rating != rating) {
-                    counts[current.rating] = ((counts[current.rating] ?: 0) - 1).coerceAtLeast(0)
-                    counts[rating] = (counts[rating] ?: 0) + 1
+                val sortedReviews = updatedReviews
+                    .sortedByDescending { it.createdAtIso }
+
+                _state.update {
+                    it.copy(
+                        reviews = sortedReviews,
+                        distribution = calculateDistribution(sortedReviews),
+                        errorMessage = null
+                    )
                 }
-                val updatedReviews = if (current == null) {
-                    listOf(savedReview) + old.reviews
-                } else {
-                    old.reviews.map { review -> if (review.id == current.id) savedReview else review }
-                }
-                old.copy(reviews = updatedReviews, distribution = counts)
+
+                _messages.send(
+                    UiMessage(
+                        if (savedReview.orderId == orderId) {
+                            "Ulasan berhasil disimpan"
+                        } else {
+                            "Ulasan berhasil dikirim"
+                        }
+                    )
+                )
+
+                onResult(true)
+
+            } catch (e: Exception) {
+                _messages.send(
+                    UiMessage(
+                        e.message ?: "Gagal menyimpan ulasan."
+                    )
+                )
+
+                onResult(false)
             }
-            _messages.send(UiMessage(if (current == null) "Ulasan berhasil dikirim" else "Perubahan ulasan berhasil disimpan"))
-            onResult(true)
         }
     }
 
+    /**
+     * Memunculkan konfirmasi hapus.
+     */
     fun requestDelete() {
-        if (_state.value.myReview != null) _state.update { it.copy(deleteState = DeleteState.Confirm) }
+        if (_state.value.myReview != null) {
+            _state.update {
+                it.copy(deleteState = DeleteState.Confirm)
+            }
+        }
     }
 
-    fun cancelDelete() = _state.update { it.copy(deleteState = DeleteState.Idle) }
+    fun cancelDelete() {
+        _state.update {
+            it.copy(deleteState = DeleteState.Idle)
+        }
+    }
 
+    /**
+     * Menghapus ulasan dari Supabase.
+     */
     fun confirmDelete() {
         val target = _state.value.myReview ?: return
-        if (_state.value.deleteState == DeleteState.Loading) return
+
+        if (_state.value.deleteState == DeleteState.Loading) {
+            return
+        }
+
         viewModelScope.launch {
-            _state.update { it.copy(deleteState = DeleteState.Loading) }
-            delay(400)
-            if (simulateFailure) {
-                _state.update { it.copy(deleteState = DeleteState.Error) }
-                return@launch
+            _state.update {
+                it.copy(deleteState = DeleteState.Loading)
             }
-            lastDeleted = target
-            repository.deleteOwnReview(orderId)
-            _state.update { old ->
-                val counts = old.distribution.toMutableMap()
-                counts[target.rating] = ((counts[target.rating] ?: 0) - 1).coerceAtLeast(0)
-                old.copy(
-                    reviews = old.reviews.filterNot { it.id == target.id },
-                    distribution = counts,
-                    deleteState = DeleteState.Idle,
+
+            try {
+                repository.deleteReview(target)
+
+                lastDeleted = target
+
+                val updatedReviews = _state.value.reviews
+                    .filterNot { it.id == target.id }
+
+                _state.update {
+                    it.copy(
+                        reviews = updatedReviews,
+                        distribution = calculateDistribution(updatedReviews),
+                        deleteState = DeleteState.Idle
+                    )
+                }
+
+                _messages.send(
+                    UiMessage(
+                        text = "Ulasan berhasil dihapus",
+                        actionLabel = "Urungkan"
+                    )
+                )
+
+            } catch (e: Exception) {
+                _state.update {
+                    it.copy(deleteState = DeleteState.Error)
+                }
+
+                _messages.send(
+                    UiMessage(
+                        e.message ?: "Gagal menghapus ulasan."
+                    )
                 )
             }
-            _messages.send(UiMessage("Ulasan berhasil dihapus", actionLabel = "Urungkan"))
         }
     }
 
+    /**
+     * Mengembalikan ulasan yang telah dihapus.
+     */
     fun undoDelete() {
         val deleted = lastDeleted ?: return
-        if (_state.value.myReview != null) return
-        repository.saveOwnReview(deleted)
-        _state.update { old ->
-            val counts = old.distribution.toMutableMap()
-            counts[deleted.rating] = (counts[deleted.rating] ?: 0) + 1
-            old.copy(reviews = listOf(deleted) + old.reviews, distribution = counts)
+
+        viewModelScope.launch {
+            try {
+                repository.restoreReview(deleted)
+
+                val updatedReviews = _state.value.reviews + deleted
+
+                _state.update {
+                    it.copy(
+                        reviews = updatedReviews.sortedByDescending {
+                                review -> review.createdAtIso
+                        },
+                        distribution = calculateDistribution(updatedReviews)
+                    )
+                }
+
+                lastDeleted = null
+
+                _messages.send(
+                    UiMessage("Ulasan berhasil dikembalikan")
+                )
+
+            } catch (e: Exception) {
+                _messages.send(
+                    UiMessage("Gagal mengembalikan ulasan.")
+                )
+            }
         }
-        lastDeleted = null
     }
 }
 
-class ReviewViewModelFactory(private val orderId: String) : ViewModelProvider.Factory {
+/**
+ * Factory ViewModel.
+ */
+class ReviewViewModelFactory(
+    private val orderId: String
+) : ViewModelProvider.Factory {
+
     @Suppress("UNCHECKED_CAST")
-    override fun <T : ViewModel> create(modelClass: Class<T>): T {
+    override fun <T : ViewModel> create(
+        modelClass: Class<T>
+    ): T {
         if (modelClass.isAssignableFrom(ReviewViewModel::class.java)) {
             return ReviewViewModel(orderId) as T
         }
-        throw IllegalArgumentException("Unknown ViewModel class: ${modelClass.name}")
+
+        throw IllegalArgumentException(
+            "Unknown ViewModel class: ${modelClass.name}"
+        )
     }
 }

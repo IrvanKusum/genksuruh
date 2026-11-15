@@ -403,6 +403,7 @@ fun AppNavGraph(
         // ULASAN (AHSANA)
         // =====================================================
 
+
         composable(
             route = Routes.REVIEW,
             arguments = listOf(
@@ -422,10 +423,6 @@ fun AppNavGraph(
                     navController.popBackStack()
                 }
             )
-        }
-
-        composable(Routes.REVIEW_LIST) {
-            ReviewScreen()
         }
 
         // =====================================================

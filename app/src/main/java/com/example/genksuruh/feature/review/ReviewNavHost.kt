@@ -1,3 +1,4 @@
+
 package com.example.genksuruh.feature.review
 
 import androidx.compose.runtime.Composable
@@ -11,39 +12,72 @@ import androidx.navigation.navArgument
 object ReviewRoutes {
     const val LIST = "review_list"
     const val FORM = "review_form/{isEdit}"
+
     fun form(isEdit: Boolean) = "review_form/$isEdit"
 }
 
 @Composable
-fun ReviewNavHost(orderId: String, onExit: () -> Unit = {}) {
+fun ReviewNavHost(
+    orderId: String,
+    onExit: () -> Unit = {}
+) {
+    require(orderId.isNotBlank()) {
+        "Order ID tidak boleh kosong."
+    }
+
     val nav = rememberNavController()
+
     val vm: ReviewViewModel = viewModel(
         key = "review_$orderId",
-        factory = ReviewViewModelFactory(orderId),
+        factory = ReviewViewModelFactory(orderId)
     )
 
-    NavHost(nav, startDestination = ReviewRoutes.LIST) {
+    NavHost(
+        navController = nav,
+        startDestination = ReviewRoutes.LIST
+    ) {
         composable(ReviewRoutes.LIST) {
             ReviewListScreen(
                 vm = vm,
                 onBack = onExit,
-                onWrite = { nav.navigate(ReviewRoutes.form(false)) },
-                onEdit = { nav.navigate(ReviewRoutes.form(true)) },
+                onWrite = {
+                    nav.navigate(ReviewRoutes.form(false))
+                },
+                onEdit = {
+                    nav.navigate(ReviewRoutes.form(true))
+                }
             )
         }
+
         composable(
-            ReviewRoutes.FORM,
-            arguments = listOf(navArgument("isEdit") { type = NavType.BoolType }),
+            route = ReviewRoutes.FORM,
+            arguments = listOf(
+                navArgument("isEdit") {
+                    type = NavType.BoolType
+                }
+            )
         ) { entry ->
             ReviewFormScreen(
                 vm = vm,
                 isEdit = entry.arguments?.getBoolean("isEdit") ?: false,
-                onClose = { nav.popBackStack() },
-                onDone = { nav.popBackStack() },
+                onClose = {
+                    nav.popBackStack()
+                },
+                onDone = {
+                    nav.popBackStack()
+                }
             )
         }
     }
 }
 
 @Composable
-fun ReviewScreen(orderId: String = "ord_123", onExit: () -> Unit = {}) = ReviewNavHost(orderId, onExit)
+fun ReviewScreen(
+    orderId: String,
+    onExit: () -> Unit = {}
+) {
+    ReviewNavHost(
+        orderId = orderId,
+        onExit = onExit
+    )
+}

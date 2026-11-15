@@ -33,7 +33,6 @@ object Routes {
     fun trackingUpdate(orderId: String) = "tracking_update/$orderId"
 
     // ===== Ulasan (Ahsana) =====
-    const val REVIEW_LIST = "review_list"
     const val REVIEW = "review/{orderId}"
 
     fun review(orderId: String) = "review/$orderId"
