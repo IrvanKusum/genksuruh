@@ -195,7 +195,7 @@ class SessionRepository {
 
 /** Tempat membuat ViewModel beserta dependency-nya. */
 object PromoModule {
-    val repository: PromoRepository by lazy { FakePromoRepository() }
+    val repository: PromoRepository by lazy { SupabasePromoRepository(session.currentUser) }
     val session: SessionRepository by lazy { SessionRepository() }
 
     val listFactory: ViewModelProvider.Factory = viewModelFactory {
