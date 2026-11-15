@@ -26,11 +26,11 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import com.example.genksuruh.feature.favorite.data.FavoriteService
+import com.example.genksuruh.core.model.Service
 
 @Composable
 fun FavoriteCard(
-    service: FavoriteService,
+    service: Service,
     onClick: () -> Unit,
     onHeartClick: () -> Unit,
     modifier: Modifier = Modifier

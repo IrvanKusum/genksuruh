@@ -18,7 +18,11 @@ class SessionViewModel(
     val account: StateFlow<Account?> = repository.account
 
     init {
-        // Samakan peran fitur Riwayat (milik Hilmiy) dengan peran login
+        viewModelScope.launch {
+            repository.restoreSession()
+        }
+
+        // Samakan peran fitur Riwayat dengan peran login
         viewModelScope.launch {
             repository.account.collect { acc ->
                 TrackingSession.role =

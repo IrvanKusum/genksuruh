@@ -169,7 +169,7 @@ class CatalogFormViewModel @JvmOverloads constructor(
                         id = old?.id ?: "svc-${System.currentTimeMillis()}",
                         title = title.trim(),
                         category = s.category,
-                        price = priceText.toInt(),
+                        price = priceText.toLongOrNull() ?: 0L,
                         description = description.trim(),
                         areas = s.areas.toList(),
                         hours = hours,

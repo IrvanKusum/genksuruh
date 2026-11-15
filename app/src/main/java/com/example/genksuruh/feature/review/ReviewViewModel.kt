@@ -63,7 +63,6 @@ class ReviewViewModel(
     private val _messages = Channel<UiMessage>(Channel.BUFFERED)
     val messages = _messages.receiveAsFlow()
 
-    private var nextId = (_state.value.reviews.maxOfOrNull { it.id } ?: 0) + 1
     private var lastDeleted: Review? = null
 
     init {
@@ -77,7 +76,7 @@ class ReviewViewModel(
         _state.update { it.copy(filter = star?.takeIf { value -> value in 1..5 }) }
     }
 
-    fun findReview(id: Int): Review? = _state.value.reviews.firstOrNull { it.id == id }
+    fun findReview(id: String): Review? = _state.value.reviews.firstOrNull { it.id == id }
 
     fun submitReview(rating: Int, comment: String, onResult: (Boolean) -> Unit) {
         val cleanComment = comment.trim()
@@ -96,7 +95,7 @@ class ReviewViewModel(
             val current = _state.value.myReview
             val savedReview = if (current == null) {
                 Review(
-                    id = nextId++, name = "Ahsana", rating = rating,
+                    id = "rev-${System.currentTimeMillis()}", name = "Ahsana", rating = rating,
                     comment = cleanComment, date = "Hari ini", isOwn = true,
                     orderId = orderId,
                 )

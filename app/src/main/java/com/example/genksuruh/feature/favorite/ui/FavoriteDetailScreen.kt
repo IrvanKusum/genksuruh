@@ -24,7 +24,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.Bolt
 import androidx.compose.material.icons.rounded.ChevronLeft
 import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.Favorite
@@ -41,6 +40,7 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -52,8 +52,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
-import androidx.compose.runtime.collectAsState
-import com.example.genksuruh.feature.favorite.data.FavoriteService
+import com.example.genksuruh.core.model.Service
 import com.example.genksuruh.feature.favorite.viewmodel.FavoriteViewModel
 
 @Composable
@@ -93,7 +92,7 @@ fun FavoriteDetailScreen(
 
 @Composable
 private fun DetailContent(
-    service: FavoriteService,
+    service: Service,
     isFavorite: Boolean,
     onBack: () -> Unit,
     onToggleFavorite: () -> Unit,
@@ -147,7 +146,7 @@ private fun DetailContent(
                             .padding(horizontal = 14.dp, vertical = 6.dp)
                     ) {
                         Text(
-                            text = service.bannerLabel,
+                            text = service.title.uppercase(),
                             style = FavType.label11.copy(color = Color.White)
                         )
                     }
@@ -198,39 +197,21 @@ private fun DetailContent(
                     )
                 }
 
-                service.discountLabel?.let { label ->
-                    Spacer(Modifier.height(8.dp))
-                    Pill(
-                        text = label,
-                        background = Color(0xFFFFF1C7),
-                        textColor = Color(0xFFB36B00),
-                        icon = Icons.Rounded.Bolt
-                    )
-                }
-
                 Spacer(Modifier.height(16.dp))
                 Text(text = "Biaya Jasa", style = FavType.caption12)
                 Row(verticalAlignment = Alignment.Bottom) {
                     Text(text = rupiah(service.price), style = FavType.price24)
-                    service.originalPrice?.let {
-                        Spacer(Modifier.width(8.dp))
-                        Text(
-                            text = rupiah(it),
-                            style = FavType.strike14,
-                            modifier = Modifier.padding(bottom = 3.dp)
-                        )
-                    }
                 }
 
                 Spacer(Modifier.height(16.dp))
                 HorizontalDivider(color = FavColors.Divider)
                 Spacer(Modifier.height(16.dp))
 
-                InfoRow(Icons.Rounded.Person, "Penyedia Jasa (Mahasiswa)", service.providerInfo)
+                InfoRow(Icons.Rounded.Person, "Penyedia Jasa (Mahasiswa)", "Penyedia: ${service.providerName}")
                 Spacer(Modifier.height(16.dp))
-                InfoRow(Icons.Rounded.LocationOn, "Area Layanan", service.area)
+                InfoRow(Icons.Rounded.LocationOn, "Area Layanan", service.areas.joinToString(", ").ifBlank { "Area Kampus UB" })
                 Spacer(Modifier.height(16.dp))
-                InfoRow(Icons.Rounded.Schedule, "Estimasi Waktu Antar", service.estimate)
+                InfoRow(Icons.Rounded.Schedule, "Estimasi Waktu Antar", service.hours.ifBlank { "Sesuai kesepakatan" })
 
                 Spacer(Modifier.height(16.dp))
                 HorizontalDivider(color = FavColors.Divider)

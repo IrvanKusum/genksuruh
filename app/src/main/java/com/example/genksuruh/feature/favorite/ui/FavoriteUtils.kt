@@ -14,7 +14,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import java.util.Locale
 
-fun rupiah(value: Int): String =
+fun rupiah(value: Long): String =
     "Rp " + value.toString().reversed().chunked(3).joinToString(".").reversed()
 
 fun ratingText(value: Double): String =
@@ -40,19 +40,19 @@ fun categoryStyle(category: String): CategoryStyle = when (category) {
         icon = Icons.Rounded.LocalCafe,
         gradient = listOf(Color(0xFFFFB627), Color(0xFFE08A00))
     )
-    "Nonton Konser" -> CategoryStyle(
+    "Nonton Konser", "Temani Acara" -> CategoryStyle(
         background = Color(0xFFDDF0FF),
         iconTint = Color(0xFF0077B6),
         icon = Icons.Rounded.ConfirmationNumber,
         gradient = listOf(Color(0xFF2E9BDA), Color(0xFF023E8A))
     )
-    "Ganti Gas Elpiji" -> CategoryStyle(
+    "Ganti Gas Elpiji", "Bantu Kos", "Bantu Rumah Tangga" -> CategoryStyle(
         background = Color(0xFFD9F7E4),
         iconTint = Color(0xFF2E9E6B),
         icon = Icons.Rounded.LocalFireDepartment,
         gradient = listOf(Color(0xFF3CB98A), Color(0xFF1B7A55))
     )
-    "Fotokopi" -> CategoryStyle(
+    "Fotokopi", "Print & Copy", "Print dan Fotokopi" -> CategoryStyle(
         background = Color(0xFFE3E4FF),
         iconTint = Color(0xFF4A3BC9),
         icon = Icons.Rounded.Print,

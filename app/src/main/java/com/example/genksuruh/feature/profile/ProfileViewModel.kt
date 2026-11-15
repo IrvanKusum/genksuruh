@@ -21,7 +21,17 @@ class ProfileViewModel(
 
     val account: StateFlow<Account?> = repository.account
 
-    fun logout() = repository.logout()
+    fun logout() {
+        viewModelScope.launch {
+            repository.logout()
+        }
+    }
+
+    fun refreshProfile() {
+        viewModelScope.launch {
+            repository.refreshProfile()
+        }
+    }
 }
 
 // ===== Layar Edit Profil =====

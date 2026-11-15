@@ -442,7 +442,7 @@ private fun ProviderCard(service: Service) {
 
 @Composable
 private fun DetailBottomBar(
-    price: Int,
+    price: Long,
     inCart: Boolean,
     isAdmin: Boolean,
     onEditClick: () -> Unit,

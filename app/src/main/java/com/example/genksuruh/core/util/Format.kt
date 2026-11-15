@@ -12,6 +12,11 @@ fun Int.toRupiah(): String {
     return "Rp $formatted"
 }
 
+fun Long.toRupiah(): String {
+    val formatted = NumberFormat.getInstance(Locale("id", "ID")).format(this)
+    return "Rp $formatted"
+}
+
 fun openWhatsApp(
     context: Context,
     phoneNumber: String = "085895089845",

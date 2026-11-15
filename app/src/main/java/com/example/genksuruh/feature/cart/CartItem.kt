@@ -1,28 +1,32 @@
 package com.example.genksuruh.feature.cart
 
+import kotlinx.serialization.SerialName
+import kotlinx.serialization.Serializable
+
 /**
  * Data khusus untuk satu entri di Keranjang.
- *
- * Catatan: pada saat implementasi ini dibuat, model katalog bersama
- * `core/model/Service.kt` (tanggung jawab Irvan) belum tersedia di repository.
- * Agar tidak menduplikasi atau mendahului desain model bersama tersebut,
- * [CartItem] untuk sementara berdiri sendiri (memuat info layanan + info
- * pemesanan sekaligus). Setelah `Service` tersedia dan disepakati bentuknya,
- * [CartItem] dapat direfactor agar membungkus `Service` ditambah field
- * khusus keranjang (lokasi, tanggal, waktu, catatan, quantity, selected).
  */
+@Serializable
 data class CartItem(
     val id: String,
-    val serviceName: String,
-    val category: String,
-    val providerName: String,
-    val price: Long,
+    @SerialName("service_id")
+    val serviceId: String = "",
+    @SerialName("user_id")
+    val userId: String = "",
+    @SerialName("service_name")
+    val serviceName: String = "",
+    val category: String = "",
+    @SerialName("provider_name")
+    val providerName: String = "",
+    val price: Long = 0L,
+    @SerialName("image_url")
     val imageUrl: String? = null,
-    val location: String,
-    val date: String,
-    val time: String,
+    val location: String = "",
+    val date: String = "",
+    val time: String = "",
     val note: String = "",
     val quantity: Int = 1,
+    @SerialName("is_selected")
     val isSelected: Boolean = true
 ) {
     val lineTotal: Long
@@ -33,8 +37,7 @@ data class CartItem(
 const val MIN_CART_ITEM_QUANTITY = 1
 
 /**
- * Memformat nominal Rupiah tanpa desimal menggunakan pemisah ribuan titik,
- * misalnya 8000 -> "Rp8.000", 75000 -> "Rp75.000".
+ * Memformat nominal Rupiah tanpa desimal menggunakan pemisah ribuan titik.
  */
 fun formatRupiah(amount: Long): String {
     val safeAmount = amount.coerceAtLeast(0)

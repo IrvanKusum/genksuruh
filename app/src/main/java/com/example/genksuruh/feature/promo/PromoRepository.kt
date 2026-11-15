@@ -164,12 +164,12 @@ private fun seedPromos() = listOf(
 )
 
 private fun seedClaims() = listOf(
-    VoucherClaim("c1", "p3", "Irvan", VoucherStatus.AKTIF, "2026-10-30"),
-    VoucherClaim("c2", "p2", "Irvan", VoucherStatus.TERPAKAI, "2026-10-25", "2026-10-28"),
-    VoucherClaim("c3", "p5", "Irvan", VoucherStatus.AKTIF, "2026-10-10"),
-    VoucherClaim("c4", "p1", "Alya Rahma", VoucherStatus.AKTIF, "2026-11-01"),
-    VoucherClaim("c5", "p1", "Fajar Nugroho", VoucherStatus.AKTIF, "2026-11-01"),
-    VoucherClaim("c6", "p1", "Putri Anjani", VoucherStatus.TERPAKAI, "2026-11-01", "2026-11-01")
+    VoucherClaim("c1", "p3", "usr-irvan", "Irvan", VoucherStatus.AKTIF, "2026-10-30"),
+    VoucherClaim("c2", "p2", "usr-irvan", "Irvan", VoucherStatus.TERPAKAI, "2026-10-25", "2026-10-28"),
+    VoucherClaim("c3", "p5", "usr-irvan", "Irvan", VoucherStatus.AKTIF, "2026-10-10"),
+    VoucherClaim("c4", "p1", "usr-alya", "Alya Rahma", VoucherStatus.AKTIF, "2026-11-01"),
+    VoucherClaim("c5", "p1", "usr-fajar", "Fajar Nugroho", VoucherStatus.AKTIF, "2026-11-01"),
+    VoucherClaim("c6", "p1", "usr-putri", "Putri Anjani", VoucherStatus.TERPAKAI, "2026-11-01", "2026-11-01")
 )
 
 /** Sesi pengguna dummy. Nanti diganti data login. */

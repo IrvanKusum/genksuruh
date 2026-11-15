@@ -67,11 +67,13 @@ class CartViewModel(
      */
     val uiState: StateFlow<CartUiState> = combine(
         repository.cartItems,
+        com.example.genksuruh.core.auth.AuthRepository.account,
         _screenState
-    ) { cartItems, screenState ->
+    ) { cartItems, account, screenState ->
 
         screenState.copy(
-            items = cartItems
+            items = cartItems,
+            watuPayBalance = account?.watupayBalance ?: screenState.watuPayBalance
         )
 
     }.stateIn(
@@ -705,6 +707,9 @@ class CartViewModel(
     fun finishCheckout() {
         repository.removeSelected()
         resetCheckoutState()
+        viewModelScope.launch {
+            com.example.genksuruh.core.auth.AuthRepository.refreshProfile()
+        }
     }
 
     private fun resetCheckoutState() {

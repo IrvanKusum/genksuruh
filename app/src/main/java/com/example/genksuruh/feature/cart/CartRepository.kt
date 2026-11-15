@@ -1,12 +1,11 @@
-
 package com.example.genksuruh.feature.cart
 
+import com.example.genksuruh.core.model.Service
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
-import com.example.genksuruh.core.model.Service
 
 /**
  * Data item yang dihapus beserta posisi sebelumnya.
@@ -18,34 +17,42 @@ data class RemovedCartItem(
 )
 
 /**
- * Repository sebagai satu-satunya sumber data Keranjang.
- *
- * Saat ini menggunakan dummy data.
- * Nantinya sumber data bisa diganti Supabase tanpa mengubah ViewModel
- * atau Composable.
+ * Kontrak Repository Keranjang.
  */
-class CartRepository {
+interface CartRepository {
+    val cartItems: StateFlow<List<CartItem>>
+    suspend fun loadCart()
+    fun simulateNextLoadFailure()
+    fun getItemById(itemId: String): CartItem?
+    fun toggleItemSelection(itemId: String)
+    fun selectAllItems()
+    fun increaseQuantity(itemId: String)
+    fun decreaseQuantity(itemId: String)
+    fun updateItem(updatedItem: CartItem): Boolean
+    fun removeItem(itemId: String): RemovedCartItem?
+    fun restoreItem(item: CartItem, index: Int)
+    fun addService(service: Service): Boolean
+    fun isInCart(serviceId: String): Boolean
+    fun selectOnly(itemId: String)
+    fun removeSelected()
 
-    companion object {
-        /** Satu keranjang untuk seluruh aplikasi (Beranda, Detail, Favorit, Keranjang). */
-        val shared = CartRepository()
+    companion object : CartRepository by DummyCartRepository {
+        val shared: CartRepository = DummyCartRepository
     }
+}
 
-    private val _cartItems =
-        MutableStateFlow<List<CartItem>>(emptyList())
+/**
+ * Implementasi Dummy / In-Memory CartRepository.
+ */
+object DummyCartRepository : CartRepository {
 
-    val cartItems: StateFlow<List<CartItem>> =
-        _cartItems.asStateFlow()
+    private val _cartItems = MutableStateFlow<List<CartItem>>(emptyList())
+    override val cartItems: StateFlow<List<CartItem>> = _cartItems.asStateFlow()
 
     private var hasLoaded = false
     private var shouldFailNextLoad = false
 
-    /**
-     * Mengambil data keranjang.
-     *
-     * Simulasi delay menyerupai pengambilan data server.
-     */
-    suspend fun loadCart() {
+    override suspend fun loadCart() {
         delay(600L)
 
         if (shouldFailNextLoad) {
@@ -55,9 +62,6 @@ class CartRepository {
             )
         }
 
-        // Data hanya dimuat pertama kali.
-        // Jika seluruh item dihapus, tidak akan muncul kembali
-        // saat pengguna membuka ulang keranjang.
         if (!hasLoaded) {
             val existing = _cartItems.value
             val dummy = CartDummyData.defaultItems()
@@ -69,24 +73,15 @@ class CartRepository {
         }
     }
 
-    /**
-     * Simulasi kegagalan pengambilan data untuk pengujian.
-     */
-    fun simulateNextLoadFailure() {
+    override fun simulateNextLoadFailure() {
         shouldFailNextLoad = true
     }
 
-    /**
-     * Mengambil satu item berdasarkan ID.
-     */
-    fun getItemById(itemId: String): CartItem? {
+    override fun getItemById(itemId: String): CartItem? {
         return _cartItems.value.find { it.id == itemId }
     }
 
-    /**
-     * Mengubah pilihan satu item.
-     */
-    fun toggleItemSelection(itemId: String) {
+    override fun toggleItemSelection(itemId: String) {
         _cartItems.update { items ->
             items.map { item ->
                 if (item.id == itemId) {
@@ -98,10 +93,7 @@ class CartRepository {
         }
     }
 
-    /**
-     * Memilih semua item atau membatalkan seluruh pilihan.
-     */
-    fun selectAllItems() {
+    override fun selectAllItems() {
         _cartItems.update { items ->
             val nextSelected =
                 items.isNotEmpty() && !items.all { it.isSelected }
@@ -112,10 +104,7 @@ class CartRepository {
         }
     }
 
-    /**
-     * Menambah quantity item.
-     */
-    fun increaseQuantity(itemId: String) {
+    override fun increaseQuantity(itemId: String) {
         _cartItems.update { items ->
             items.map { item ->
                 if (item.id == itemId) {
@@ -127,10 +116,7 @@ class CartRepository {
         }
     }
 
-    /**
-     * Mengurangi quantity item dengan batas minimum.
-     */
-    fun decreaseQuantity(itemId: String) {
+    override fun decreaseQuantity(itemId: String) {
         _cartItems.update { items ->
             items.map { item ->
                 if (item.id == itemId) {
@@ -146,11 +132,7 @@ class CartRepository {
         }
     }
 
-    /**
-     * Memperbarui data item setelah proses edit.
-     * Status selected tetap mengikuti data sebelumnya.
-     */
-    fun updateItem(updatedItem: CartItem): Boolean {
+    override fun updateItem(updatedItem: CartItem): Boolean {
         val currentItems = _cartItems.value
 
         if (currentItems.none { it.id == updatedItem.id }) {
@@ -170,10 +152,7 @@ class CartRepository {
         return true
     }
 
-    /**
-     * Menghapus item dan menyimpan posisi sebelumnya.
-     */
-    fun removeItem(itemId: String): RemovedCartItem? {
+    override fun removeItem(itemId: String): RemovedCartItem? {
         val currentItems = _cartItems.value
 
         val index = currentItems.indexOfFirst {
@@ -194,16 +173,9 @@ class CartRepository {
         )
     }
 
-    /**
-     * Mengembalikan item yang sebelumnya dihapus.
-     */
-    fun restoreItem(
-        item: CartItem,
-        index: Int
-    ) {
+    override fun restoreItem(item: CartItem, index: Int) {
         val currentItems = _cartItems.value
 
-        // Hindari item duplikat.
         if (currentItems.any { it.id == item.id }) return
 
         val restoreIndex = index.coerceIn(
@@ -218,16 +190,16 @@ class CartRepository {
         _cartItems.value = restoredItems
     }
 
-    /** Menambah jasa dari katalog ke keranjang. false jika sudah ada. */
-    fun addService(service: Service): Boolean {
+    override fun addService(service: Service): Boolean {
         if (_cartItems.value.any { it.id == service.id }) return false
 
         val item = CartItem(
             id = service.id,
+            serviceId = service.id,
             serviceName = service.title,
             category = service.category,
             providerName = service.providerName,
-            price = service.price.toLong(),
+            price = service.price,
             imageUrl = service.imageUrl,
             location = "Area Kampus UB",
             date = "10 November 2026",
@@ -240,19 +212,16 @@ class CartRepository {
         return true
     }
 
-    fun isInCart(serviceId: String): Boolean =
+    override fun isInCart(serviceId: String): Boolean =
         _cartItems.value.any { it.id == serviceId }
 
-    /** Hanya satu item yang dicentang (dipakai "Pesan Sekarang"). */
-    fun selectOnly(itemId: String) {
+    override fun selectOnly(itemId: String) {
         _cartItems.update { items ->
             items.map { it.copy(isSelected = it.id == itemId) }
         }
     }
 
-    /** Hapus item yang sudah dibayar. */
-    fun removeSelected() {
+    override fun removeSelected() {
         _cartItems.update { items -> items.filterNot { it.isSelected } }
     }
-
 }

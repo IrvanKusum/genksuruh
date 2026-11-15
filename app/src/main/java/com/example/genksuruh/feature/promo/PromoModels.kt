@@ -1,5 +1,8 @@
 package com.example.genksuruh.feature.promo
 
+import kotlinx.serialization.SerialName
+import kotlinx.serialization.Serializable
+
 object AppClock {
     const val TODAY = "2026-11-01"
 }
@@ -12,22 +15,33 @@ enum class VoucherStatus(val label: String) {
     KEDALUWARSA("Kedaluwarsa")
 }
 
+@Serializable
 data class Promo(
     val id: String,
     val title: String,
     val code: String,
     val category: String,
     val emoji: String,
+    @SerialName("discount_type")
     val discountType: DiscountType,
+    @SerialName("discount_value")
     val discountValue: Int,
+    @SerialName("max_discount")
     val maxDiscount: Int = 0,
+    @SerialName("min_order")
     val minOrder: Int = 0,
-    val serviceName: String,
-    val providerName: String,
+    @SerialName("service_id")
+    val serviceId: String? = null,
+    @SerialName("service_name")
+    val serviceName: String = "",
+    @SerialName("provider_name")
+    val providerName: String = "",
+    @SerialName("start_date")
     val startDate: String,
+    @SerialName("end_date")
     val endDate: String,
     val quota: Int,
-    val claimed: Int,
+    val claimed: Int = 0,
     val description: String = "",
     val terms: List<String> = emptyList()
 ) {
@@ -42,12 +56,19 @@ data class Promo(
         }
 }
 
+@Serializable
 data class VoucherClaim(
     val id: String,
+    @SerialName("promo_id")
     val promoId: String,
-    val userName: String,
+    @SerialName("user_id")
+    val userId: String = "",
+    @SerialName("user_name")
+    val userName: String = "",
     val status: VoucherStatus,
+    @SerialName("claimed_at")
     val claimedAt: String,
+    @SerialName("used_at")
     val usedAt: String? = null
 )
 

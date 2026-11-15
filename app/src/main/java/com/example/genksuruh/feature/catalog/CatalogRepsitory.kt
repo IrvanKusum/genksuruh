@@ -7,41 +7,48 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import java.io.IOException
 
-// MODEL (Repository): satu-satunya pintu data jasa.
-// Progress 1: data dummy. Progress 2: ganti isi fungsi dengan pemanggilan Supabase.
-object CatalogRepository {
+// Kontrak Repository Katalog Jasa. ViewModel bergantung pada interface ini.
+interface CatalogRepository {
+    val services: StateFlow<List<Service>>
+    suspend fun loadServices(simulateFailure: Boolean = false)
+    fun getById(id: String): Service?
+    suspend fun toggleFavorite(id: String)
+    suspend fun uploadPhoto(localUri: String, onProgress: (Int) -> Unit): String
+    suspend fun save(service: Service)
+    suspend fun delete(id: String, simulateFailure: Boolean = false)
 
-    // Pengguna dummy yang sedang login
-    const val CURRENT_USER_ID = "usr-irvan"
-    const val CURRENT_USER_NAME = "Irvan Nabil"
+    companion object : CatalogRepository by DummyCatalogRepository {
+        const val CURRENT_USER_ID = "usr-irvan"
+        const val CURRENT_USER_NAME = "Irvan Nabil"
+    }
+}
 
-    // "Server" dummy. Nanti diganti tabel `services` di Supabase.
+// Implementasi Dummy / In-Memory
+object DummyCatalogRepository : CatalogRepository {
+
     private var serverData: List<Service> = DummyServices.list
 
-    // Data yang sudah diterima aplikasi. Kosong sampai loadServices() dipanggil.
     private val _services = MutableStateFlow<List<Service>>(emptyList())
-    val services: StateFlow<List<Service>> = _services.asStateFlow()
+    override val services: StateFlow<List<Service>> = _services.asStateFlow()
 
     private fun commit(newList: List<Service>) {
         serverData = newList
         _services.value = newList
     }
 
-    // Simulasi GET
-    suspend fun loadServices(simulateFailure: Boolean = false) {
-        delay(800) // anggap ini waktu tunggu jaringan
+    override suspend fun loadServices(simulateFailure: Boolean) {
+        delay(800)
         if (simulateFailure) throw IOException("Gagal terhubung ke server (simulasi)")
         _services.value = serverData
     }
 
-    fun getById(id: String): Service? = serverData.find { it.id == id }
+    override fun getById(id: String): Service? = serverData.find { it.id == id }
 
-    suspend fun toggleFavorite(id: String) {
+    override suspend fun toggleFavorite(id: String) {
         commit(serverData.map { if (it.id == id) it.copy(isFavorite = !it.isFavorite) else it })
     }
 
-    // Simulasi upload foto. Progress 2: upload ke Supabase Storage, kembalikan URL publik.
-    suspend fun uploadPhoto(localUri: String, onProgress: (Int) -> Unit): String {
+    override suspend fun uploadPhoto(localUri: String, onProgress: (Int) -> Unit): String {
         for (p in 0..100 step 10) {
             onProgress(p)
             delay(120)
@@ -49,8 +56,7 @@ object CatalogRepository {
         return localUri
     }
 
-    // Simulasi POST/PUT. Judul yang mengandung "gagal" ditolak, untuk menguji state error.
-    suspend fun save(service: Service) {
+    override suspend fun save(service: Service) {
         delay(700)
         if (service.title.contains("gagal", ignoreCase = true)) {
             throw IOException("Server menolak jasa \"${service.title}\" (simulasi)")
@@ -62,8 +68,7 @@ object CatalogRepository {
         )
     }
 
-    // Simulasi DELETE (dipakai di langkah Dialog Hapus nanti)
-    suspend fun delete(id: String, simulateFailure: Boolean = false) {
+    override suspend fun delete(id: String, simulateFailure: Boolean) {
         delay(600)
         if (simulateFailure) throw IOException("Gagal menghapus jasa (simulasi)")
         commit(serverData.filterNot { it.id == id })
