@@ -91,12 +91,13 @@ val serviceOptions = listOf(
     ServiceOption("Temani Nonton Konser", "Temani Acara", "🎤"),
     ServiceOption("Ganti Gas Elpiji 3 Kg", "Bantu Rumah Tangga", "🔥"),
     ServiceOption("Fotokopi dan Jilid Skripsi", "Print dan Fotokopi", "🖨️"),
-    ServiceOption("Antar Jemput Galon Air", "Bantu Rumah Tangga", "💧")
+    ServiceOption("Antar Jemput Galon Air", "Bantu Rumah Tangga", "💧"),
+    ServiceOption("Lainnya", "Lainnya", "🎟️")
 )
 
 val promoCategories = listOf(
     "Semua", "Antar Makanan", "Beli Jajan", "Temani Acara",
-    "Bantu Rumah Tangga", "Print dan Fotokopi"
+    "Bantu Rumah Tangga", "Print dan Fotokopi, Lainnya"
 )
 
 val defaultTerms = listOf(
