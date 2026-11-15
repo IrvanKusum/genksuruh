@@ -47,7 +47,8 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.compose.material.icons.rounded.CloudOff
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -76,7 +77,7 @@ fun CatalogScreen(
     onProfileClick: () -> Unit = {},
     viewModel: CatalogViewModel = viewModel()
 ) {
-    val state by viewModel.uiState.collectAsState()
+    val state by viewModel.uiState.collectAsStateWithLifecycle()
     val context = LocalContext.current
 
     Box(
@@ -110,7 +111,7 @@ fun CatalogScreen(
                 PriceRow(
                     selected = state.priceFilter,
                     count = state.services.size,
-                    showCount = !state.isLoading,
+                    showCount = !state.isLoading && state.errorMessage == null,
                     onSelected = viewModel::onPriceSelected
                 )
             }
@@ -118,6 +119,15 @@ fun CatalogScreen(
             when {
                 state.isLoading -> {
                     items(6) { SkeletonCard() }
+                }
+
+                state.errorMessage != null -> {
+                    item(span = { GridItemSpan(maxLineSpan) }) {
+                        ErrorState(
+                            message = state.errorMessage.orEmpty(),
+                            onRetry = { viewModel.loadServices() }
+                        )
+                    }
                 }
 
                 state.isEmpty -> {
@@ -345,6 +355,41 @@ private fun EmptyState(onReset: () -> Unit) {
         )
         Spacer(Modifier.height(16.dp))
         Button(onClick = onReset) { Text("Reset Filter") }
+    }
+}
+
+@Composable
+private fun ErrorState(message: String, onRetry: () -> Unit) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 48.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Box(
+            modifier = Modifier
+                .size(88.dp)
+                .clip(CircleShape)
+                .background(MaterialTheme.colorScheme.errorContainer),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                Icons.Rounded.CloudOff, null,
+                tint = MaterialTheme.colorScheme.error,
+                modifier = Modifier.size(44.dp)
+            )
+        }
+        Spacer(Modifier.height(16.dp))
+        Text("Gagal memuat jasa", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+        Spacer(Modifier.height(4.dp))
+        Text(
+            message,
+            style = MaterialTheme.typography.bodyMedium,
+            color = TextMuted,
+            textAlign = TextAlign.Center
+        )
+        Spacer(Modifier.height(16.dp))
+        Button(onClick = onRetry) { Text("Coba Lagi") }
     }
 }
 
