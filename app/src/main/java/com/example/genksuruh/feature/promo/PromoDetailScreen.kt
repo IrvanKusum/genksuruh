@@ -19,11 +19,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.ContentScale // BARU
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import coil.compose.AsyncImage // BARU
 
 data class PromoDetailActions(
     val onClaimClick: () -> Unit,
@@ -263,11 +265,21 @@ private fun DetailBody(
                     Brush.verticalGradient(listOf(PromoColors.Primary, PromoColors.PrimaryDark))
                 )
         ) {
-            Text(
-                text = promo.emoji,
-                fontSize = 80.sp,
-                modifier = Modifier.align(Alignment.Center)
-            )
+            // BARU: tampilkan foto banner, kalau tidak ada tampil emoji
+            if (promo.bannerUrl != null) {
+                AsyncImage(
+                    model = promo.bannerUrl,
+                    contentDescription = promo.title,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize()
+                )
+            } else {
+                Text(
+                    text = promo.emoji,
+                    fontSize = 80.sp,
+                    modifier = Modifier.align(Alignment.Center)
+                )
+            }
         }
 
         Column(

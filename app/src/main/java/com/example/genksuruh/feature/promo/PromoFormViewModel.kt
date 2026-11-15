@@ -32,7 +32,7 @@ data class PromoFormUiState(
     val startDate: String = "",
     val endDate: String = "",
     val description: String = "",
-    val bannerPicked: Boolean = false,
+    val bannerPreview: String? = null, // BARU (menggantikan bannerPicked)
 
     val errors: Map<FormFieldKey, String> = emptyMap(),
     val datePickerTarget: DatePickerTarget? = null
@@ -55,6 +55,10 @@ class PromoFormViewModel(
 
     private val isNew = promoId == NEW_ID
     private var existing: Promo? = null
+
+    // BARU: foto yang baru dipilih, menunggu diunggah saat Simpan
+    private var pendingBannerBytes: ByteArray? = null
+    private var pendingBannerMime: String = "image/jpeg"
 
     private val _uiState = MutableStateFlow(PromoFormUiState(isNew = isNew, isLoading = !isNew))
     val uiState: StateFlow<PromoFormUiState> = _uiState.asStateFlow()
@@ -88,7 +92,7 @@ class PromoFormViewModel(
                     startDate = promo.startDate,
                     endDate = promo.endDate,
                     description = promo.description,
-                    bannerPicked = true
+                    bannerPreview = promo.bannerUrl // BARU
                 )
             }
         }
@@ -138,8 +142,15 @@ class PromoFormViewModel(
         _uiState.update { it.copy(description = value) }
     }
 
-    fun onBannerPicked() {
-        _uiState.update { it.copy(bannerPicked = true) }
+    // BARU: menerima foto yang dipilih (alamat lokal, isi file, jenis file)
+    fun onBannerPicked(uri: String, bytes: ByteArray, mime: String) {
+        if (bytes.size > 2 * 1024 * 1024) {
+            _events.trySend(PromoFormEvent.Error("Ukuran gambar maksimal 2 MB"))
+            return
+        }
+        pendingBannerBytes = bytes
+        pendingBannerMime = mime
+        _uiState.update { it.copy(bannerPreview = uri) }
     }
 
     fun onStartDateClick() {
@@ -201,7 +212,25 @@ class PromoFormViewModel(
             }
 
             delay(1200)
-            repository.savePromo(buildPromo(snapshot))
+
+            // BARU: unggah foto kalau ada yang baru dipilih
+            var bannerUrl = existing?.bannerUrl
+            val bytes = pendingBannerBytes
+            if (bytes != null) {
+                val upload = repository.uploadBanner(bytes, pendingBannerMime)
+                if (upload.isFailure) {
+                    _uiState.update { it.copy(isSaving = false) }
+                    _events.trySend(
+                        PromoFormEvent.Error(
+                            "Gagal mengunggah banner: ${upload.exceptionOrNull()?.message}"
+                        )
+                    )
+                    return@launch
+                }
+                bannerUrl = upload.getOrNull()
+            }
+
+            repository.savePromo(buildPromo(snapshot, bannerUrl))
                 .onSuccess {
                     _events.trySend(
                         PromoFormEvent.Saved(
@@ -250,7 +279,7 @@ class PromoFormViewModel(
         return errors
     }
 
-    private fun buildPromo(s: PromoFormUiState): Promo {
+    private fun buildPromo(s: PromoFormUiState, bannerUrl: String?): Promo { // BARU: parameter bannerUrl
         val service = serviceOptions.find { it.name == s.service }
         val current = existing
         return Promo(
@@ -274,7 +303,8 @@ class PromoFormViewModel(
             quota = s.quota.toInt(),
             claimed = current?.claimed ?: 0,
             description = s.description.trim(),
-            terms = current?.terms ?: defaultTerms
+            terms = current?.terms ?: defaultTerms,
+            bannerUrl = bannerUrl // BARU
         )
     }
 }
