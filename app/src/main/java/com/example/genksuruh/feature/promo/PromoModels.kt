@@ -4,7 +4,9 @@ import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
 object AppClock {
-    const val TODAY = "2026-11-01"
+    val TODAY: String
+        get() = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US)
+            .format(java.util.Date())
 }
 
 enum class DiscountType { PERSEN, NOMINAL }
