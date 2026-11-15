@@ -45,7 +45,9 @@ data class Promo(
     val quota: Int,
     val claimed: Int = 0,
     val description: String = "",
-    val terms: List<String> = emptyList()
+    val terms: List<String> = emptyList(),
+    @SerialName("banner_url")
+    val bannerUrl: String? = null
 ) {
     val isFull: Boolean get() = claimed >= quota
     val remaining: Int get() = (quota - claimed).coerceAtLeast(0)
@@ -97,7 +99,7 @@ val serviceOptions = listOf(
 
 val promoCategories = listOf(
     "Semua", "Antar Makanan", "Beli Jajan", "Temani Acara",
-    "Bantu Rumah Tangga", "Print dan Fotokopi, Lainnya"
+    "Bantu Rumah Tangga", "Print dan Fotokopi", "Lainnya"
 )
 
 val defaultTerms = listOf(

@@ -4,6 +4,7 @@ import android.util.Log
 import com.example.genksuruh.core.network.SupabaseClient
 import io.github.jan.supabase.auth.auth
 import io.github.jan.supabase.postgrest.postgrest
+import io.github.jan.supabase.storage.storage // BARU
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -22,8 +23,7 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import java.util.TimeZone
-
-// Kalau "SupabaseClient" merah: klik kata itu, tekan Alt+Enter, pilih Import.
+import java.util.UUID // BARU
 
 private const val TAG = "PromoRepo"
 
@@ -45,6 +45,7 @@ private data class PromoRow(
     @SerialName("claimed_count") val claimedCount: Int = 0,
     val description: String? = null,
     val terms: List<String>? = null,
+    @SerialName("banner_url") val bannerUrl: String? = null, // BARU
     @SerialName("created_at") val createdAt: String? = null
 )
 
@@ -162,7 +163,8 @@ class SupabasePromoRepository(private val myName: String) : PromoRepository {
             quota = quota,
             claimed = claimedCount,
             description = description.orEmpty(),
-            terms = terms ?: emptyList()
+            terms = terms ?: emptyList(),
+            bannerUrl = bannerUrl // BARU
         )
     }
 
@@ -187,12 +189,26 @@ class SupabasePromoRepository(private val myName: String) : PromoRepository {
         put("quota", promo.quota)
         put("description", promo.description)
         put("terms", JsonArray(promo.terms.map { JsonPrimitive(it) }))
+        put("banner_url", promo.bannerUrl) // BARU
     }
 
     override suspend fun getPromoById(id: String): Promo? = _promos.value.find { it.id == id }
 
     override suspend fun isCodeTaken(code: String, excludePromoId: String?): Boolean =
         _promos.value.any { it.code.equals(code, true) && it.id != excludePromoId }
+
+    // BARU: unggah foto ke bucket promo-banners, hasilnya alamat (URL) foto
+    override suspend fun uploadBanner(bytes: ByteArray, mimeType: String): Result<String> = runCatching {
+        val ext = when (mimeType) {
+            "image/png" -> "png"
+            "image/webp" -> "webp"
+            else -> "jpg"
+        }
+        val path = "${myId() ?: "anon"}/${UUID.randomUUID()}.$ext"
+        val bucket = SupabaseClient.client.storage.from("promo-banners")
+        bucket.upload(path, bytes)
+        bucket.publicUrl(path)
+    }.onFailure { Log.e(TAG, "uploadBanner gagal: ${it.message}", it) }
 
     override suspend fun savePromo(promo: Promo): Result<Unit> = runCatching {
         val exists = _promos.value.any { it.id == promo.id }
