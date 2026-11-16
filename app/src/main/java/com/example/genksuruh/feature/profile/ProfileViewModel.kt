@@ -59,6 +59,9 @@ class EditProfileViewModel(
     private val _uiState = MutableStateFlow(EditProfileUiState(photoUri = current?.photoUri))
     val uiState: StateFlow<EditProfileUiState> = _uiState.asStateFlow()
 
+    private var photoBytes: ByteArray? = null
+    private var photoMime: String? = null
+
     val initial: String get() = current?.initial ?: "?"
 
     fun onNameChange(value: String) {
@@ -71,11 +74,17 @@ class EditProfileViewModel(
         _uiState.update { it.copy(phoneError = null) }
     }
 
-    fun onPhotoPicked(uri: String?) {
-        if (uri != null) _uiState.update { it.copy(photoUri = uri) }
+    fun onPhotoPicked(uri: String?, bytes: ByteArray, mime: String) {
+        if (uri != null) {
+            photoBytes = bytes
+            photoMime = mime
+            _uiState.update { it.copy(photoUri = uri) }
+        }
     }
 
     fun removePhoto() {
+        photoBytes = null
+        photoMime = null
         _uiState.update { it.copy(photoUri = null) }
     }
 
@@ -96,7 +105,7 @@ class EditProfileViewModel(
         viewModelScope.launch {
             _uiState.update { it.copy(isSaving = true, errorMessage = null) }
             try {
-                repository.updateProfile(name, phone, _uiState.value.photoUri)
+                repository.updateProfile(name, phone, photoBytes, photoMime)
                 _uiState.update { it.copy(saved = true) }
             } catch (e: CancellationException) {
                 throw e

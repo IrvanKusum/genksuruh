@@ -33,6 +33,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.CornerRadius
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.drawscope.Stroke
@@ -68,11 +71,25 @@ fun CatalogFormScreen(
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
 
     val launcher = rememberLauncherForActivityResult(
         ActivityResultContracts.PickVisualMedia()
     ) { uri ->
-        if (uri != null) viewModel.onPhotoPicked(uri, context.fileSize(uri))
+        if (uri != null) {
+            scope.launch {
+                val picked = withContext(Dispatchers.IO) {
+                    runCatching {
+                        val bytes = context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
+                        val mime = context.contentResolver.getType(uri) ?: "image/jpeg"
+                        bytes?.let { it to mime }
+                    }.getOrNull()
+                }
+                if (picked != null) {
+                    viewModel.onPhotoPicked(picked.first, picked.second, context.fileSize(uri))
+                }
+            }
+        }
     }
 
     LaunchedEffect(state.saved) { if (state.saved) onClose() }

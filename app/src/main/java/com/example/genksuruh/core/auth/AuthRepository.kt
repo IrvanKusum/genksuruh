@@ -1,9 +1,12 @@
 package com.example.genksuruh.core.auth
 
+import android.util.Log
+import com.example.genksuruh.core.network.StorageUploader
 import com.example.genksuruh.core.network.SupabaseClient
 import io.github.jan.supabase.auth.auth
 import io.github.jan.supabase.auth.providers.builtin.Email
 import io.github.jan.supabase.postgrest.postgrest
+import io.github.jan.supabase.postgrest.query.filter.*
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -139,23 +142,38 @@ object AuthRepository {
         }
     }
 
-    suspend fun updateProfile(name: String, phone: String, photoUri: String?) {
+    suspend fun updateProfile(name: String, phone: String, photoBytes: ByteArray? = null, mimeType: String? = null) {
         val current = _account.value ?: throw IllegalStateException("Belum login")
 
         if (name.contains("gagal", ignoreCase = true)) {
             throw IOException("Server menolak perubahan profil (simulasi)")
         }
 
+        var finalPhotoUrl = current.photoUri
+        if (photoBytes != null) {
+            try {
+                val ext = when (mimeType) {
+                    "image/png" -> "png"
+                    "image/webp" -> "webp"
+                    else -> "jpg"
+                }
+                val path = "profiles/${current.id}.$ext"
+                finalPhotoUrl = StorageUploader.upload(path, photoBytes, overwrite = true)
+            } catch (e: Exception) {
+                Log.e("AuthRepo", "Upload foto profil gagal: ${e.message}", e)
+            }
+        }
+
         try {
             SupabaseClient.client.postgrest.from("profiles")
-                .update(ProfileUpdateDto(name = name.trim(), phone = phone.trim(), photoUrl = photoUri)) {
+                .update(ProfileUpdateDto(name = name.trim(), phone = phone.trim(), photoUrl = finalPhotoUrl)) {
                     filter {
                         eq("id", current.id)
                     }
                 }
             refreshProfile()
         } catch (e: Exception) {
-            val updated = current.copy(name = name.trim(), phone = phone, photoUri = photoUri)
+            val updated = current.copy(name = name.trim(), phone = phone, photoUri = finalPhotoUrl)
             _account.value = updated
         }
     }

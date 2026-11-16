@@ -147,7 +147,7 @@ class CatalogFormViewModel @JvmOverloads constructor(
 
     // ---------- Foto ----------
 
-    fun onPhotoPicked(uri: Uri, sizeBytes: Long) {
+    fun onPhotoPicked(bytes: ByteArray, mimeType: String, sizeBytes: Long) {
         if (sizeBytes > MAX_PHOTO_BYTES) {
             _uiState.update {
                 it.copy(photo = PhotoState.Error("Gagal mengunggah. Ukuran file melebihi 2 MB."))
@@ -157,7 +157,7 @@ class CatalogFormViewModel @JvmOverloads constructor(
         viewModelScope.launch {
             _uiState.update { it.copy(photo = PhotoState.Uploading(0), photoError = null) }
             try {
-                val url = repository.uploadPhoto(uri.toString()) { p ->
+                val url = repository.uploadPhoto(bytes, mimeType) { p ->
                     _uiState.update { it.copy(photo = PhotoState.Uploading(p)) }
                 }
                 _uiState.update { it.copy(photo = PhotoState.Uploaded(url, null)) }
