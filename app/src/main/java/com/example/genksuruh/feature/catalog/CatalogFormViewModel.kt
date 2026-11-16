@@ -1,6 +1,5 @@
 package com.example.genksuruh.feature.catalog
 
-import android.net.Uri
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -67,6 +66,14 @@ class CatalogFormViewModel @JvmOverloads constructor(
         private set
     var description by mutableStateOf("")
         private set
+    var providerName by mutableStateOf("")
+        private set
+    var providerPhone by mutableStateOf("")
+        private set
+    var providerNameError by mutableStateOf<String?>(null)
+        private set
+    var providerPhoneError by mutableStateOf<String?>(null)
+        private set
 
     private val _uiState = MutableStateFlow(FormUiState(isEdit = editId != null))
     val uiState: StateFlow<FormUiState> = _uiState.asStateFlow()
@@ -78,6 +85,8 @@ class CatalogFormViewModel @JvmOverloads constructor(
                 title = s.title
                 priceText = s.price.toString()
                 description = s.description
+                providerName = s.providerName
+                providerPhone = s.providerPhone
 
                 // Jam lama, contoh: "Senin - Jumat, 08.00 - 16.00"
                 var start = "08:00"
@@ -104,6 +113,10 @@ class CatalogFormViewModel @JvmOverloads constructor(
                     endTime = end
                 )
             }
+        } ?: run {
+            val owner = auth.account.value
+            providerName = owner?.name ?: ""
+            providerPhone = owner?.phone ?: "085895089845"
         }
     }
 
@@ -127,6 +140,16 @@ class CatalogFormViewModel @JvmOverloads constructor(
 
     fun onCategoryChange(v: String) {
         _uiState.update { it.copy(category = v, categoryError = null) }
+    }
+
+    fun onProviderNameChange(v: String) {
+        providerName = v.take(50)
+        providerNameError = null
+    }
+
+    fun onProviderPhoneChange(v: String) {
+        providerPhone = v.filter { it.isDigit() || it == '+' }.take(15)
+        providerPhoneError = null
     }
 
     fun toggleArea(area: String) {
@@ -183,8 +206,10 @@ class CatalogFormViewModel @JvmOverloads constructor(
         val categoryErr = if (s.category.isBlank()) "Kategori belum dipilih" else null
         val priceErr = if ((priceText.toIntOrNull() ?: 0) <= 0) "Harga wajib diisi" else null
         val photoErr = if (s.photo !is PhotoState.Uploaded) "Foto jasa wajib diunggah" else null
+        val providerNameErr = if (providerName.isBlank()) "Nama penyedia wajib diisi" else null
+        val providerPhoneErr = if (providerPhone.isBlank()) "Nomor telepon wajib diisi" else null
 
-        if (titleErr != null || categoryErr != null || priceErr != null || photoErr != null) {
+        if (titleErr != null || categoryErr != null || priceErr != null || photoErr != null || providerNameErr != null || providerPhoneErr != null) {
             _uiState.update {
                 it.copy(
                     titleError = titleErr,
@@ -193,6 +218,8 @@ class CatalogFormViewModel @JvmOverloads constructor(
                     photoError = photoErr
                 )
             }
+            providerNameError = providerNameErr
+            providerPhoneError = providerPhoneErr
             return
         }
 
@@ -224,7 +251,8 @@ class CatalogFormViewModel @JvmOverloads constructor(
                         areas = s.areas.toList(),
                         hours = hours,
                         providerId = old?.providerId ?: owner?.id ?: CatalogRepository.CURRENT_USER_ID,
-                        providerName = old?.providerName ?: owner?.name ?: CatalogRepository.CURRENT_USER_NAME,
+                        providerName = providerName.trim(),
+                        providerPhone = providerPhone.trim().ifBlank { "085895089845" },
                         rating = old?.rating ?: 0.0,
                         reviewCount = old?.reviewCount ?: 0,
                         imageRes = photo.imageRes,

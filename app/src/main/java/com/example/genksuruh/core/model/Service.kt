@@ -17,6 +17,8 @@ data class Service(
     val providerId: String = "",
     @SerialName("provider_name")
     val providerName: String = "",
+    @SerialName("provider_phone")
+    val providerPhone: String = "085895089845",
     val rating: Double = 0.0,
     @SerialName("review_count")
     val reviewCount: Int = 0,

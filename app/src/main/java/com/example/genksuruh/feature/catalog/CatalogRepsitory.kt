@@ -86,6 +86,8 @@ object SupabaseCatalogRepository : CatalogRepository {
         val exists = _services.value.any { it.id == service.id }
         if (exists) {
             val updateDto = ServiceUpdate(
+                providerName = service.providerName,
+                providerPhone = service.providerPhone,
                 title = service.title,
                 category = service.category,
                 price = service.price,
@@ -102,6 +104,8 @@ object SupabaseCatalogRepository : CatalogRepository {
         } else {
             val insertDto = ServiceInsert(
                 providerId = service.providerId,
+                providerName = service.providerName,
+                providerPhone = service.providerPhone,
                 title = service.title,
                 category = service.category,
                 price = service.price,
