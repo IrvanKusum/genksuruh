@@ -100,15 +100,17 @@ data class Order(
     val providerEarning: Long get() = servicePrice + addOnPrice - platformCut
 }
 
-/** Padanan tabel `status_history` (sumber timeline). */
+/** Padanan tabel `status_history` atau `order_status_history` (sumber timeline). */
 @Serializable
 data class StatusHistory(
     @SerialName("order_id")
     val orderId: String,
     val status: OrderStatus,
-    val note: String?,
+    val note: String? = null,
     @SerialName("time_text")
-    val timeText: String,
+    val timeText: String = "",
+    @SerialName("created_at")
+    val createdAt: String? = null,
 )
 
 data class OrderDetail(val order: Order, val history: List<StatusHistory>)

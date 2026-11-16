@@ -12,18 +12,37 @@ import java.util.Date
 import java.util.Locale
 import com.example.genksuruh.feature.cart.CartItem
 
-/** Kontrak data fitur Status & Riwayat. Nanti bisa diganti implementasi Room/Firebase. */
+/** Kontrak data fitur Status & Riwayat. */
 interface TrackingRepository {
     fun observeOrders(role: UserRole, tab: OrderTab): Flow<List<Order>>
     fun observeOrder(orderId: String): Flow<OrderDetail?>
     suspend fun updateStatus(orderId: String, newStatus: OrderStatus, note: String?)
     suspend fun cancelOrder(orderId: String)
+
+    companion object {
+        val shared: TrackingRepository get() = SupabaseTrackingRepository
+    }
 }
 
 object FakeTrackingRepository : TrackingRepository {
 
     private val orders = MutableStateFlow(dummyOrders())
     private val histories = MutableStateFlow(dummyHistories())
+
+    fun getOrdersForRoleAndTab(role: UserRole, tab: OrderTab): List<Order> {
+        return orders.value.filter { tab.accepts(it.status) }
+    }
+
+    fun getHistoriesForOrder(orderId: String): List<StatusHistory> {
+        return histories.value[orderId].orEmpty()
+    }
+
+    fun addOrdersDirectly(newOrders: List<Order>) {
+        orders.update { current -> newOrders + current }
+        newOrders.forEach { o ->
+            addHistory(o.id, OrderStatus.MENUNGGU, "Pesanan berhasil dibuat dari checkout")
+        }
+    }
 
     /** Menambahkan pesanan baru hasil checkout keranjang. */
     fun addOrdersFromCart(items: List<CartItem>, defaultAddress: String = ADDRESS) {

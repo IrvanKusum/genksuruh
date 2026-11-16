@@ -28,7 +28,7 @@ sealed interface OrdersUiState {
 /** Layar riwayat: satu StateFlow per tab agar pager menampilkan tiap tab sendiri. */
 @OptIn(ExperimentalCoroutinesApi::class)
 class TrackingViewModel : ViewModel() {
-    private val repo: TrackingRepository = FakeTrackingRepository
+    private val repo: TrackingRepository = TrackingRepository.shared
     private val role = MutableStateFlow(UserRole.USER)
 
     val tabStates: Map<OrderTab, StateFlow<OrdersUiState>> = OrderTab.values().associateWith { tab ->
@@ -48,7 +48,7 @@ class TrackingViewModel : ViewModel() {
 
 /** Layar detail progres. */
 class TrackingDetailViewModel(savedStateHandle: SavedStateHandle) : ViewModel() {
-    private val repo: TrackingRepository = FakeTrackingRepository
+    private val repo: TrackingRepository = TrackingRepository.shared
     private val orderId: String = checkNotNull(savedStateHandle.get<String>("orderId"))
 
     val detail: StateFlow<OrderDetail?> = repo.observeOrder(orderId)
@@ -72,7 +72,7 @@ class TrackingDetailViewModel(savedStateHandle: SavedStateHandle) : ViewModel() 
 
 /** Layar form update status (penyedia). */
 class TrackingUpdateViewModel(savedStateHandle: SavedStateHandle) : ViewModel() {
-    private val repo: TrackingRepository = FakeTrackingRepository
+    private val repo: TrackingRepository = TrackingRepository.shared
     private val orderId: String = checkNotNull(savedStateHandle.get<String>("orderId"))
 
     val detail: StateFlow<OrderDetail?> = repo.observeOrder(orderId)
