@@ -95,6 +95,10 @@ fun AppNavGraph(
                 onServiceClick = { id ->
                     navController.navigate(Routes.catalogDetail(id))
                 },
+                onAddToCart = { service ->
+                    cartViewModel.prepareAddToCart(service)
+                    navController.navigate(Routes.CART_ITEM_DETAIL) { launchSingleTop = true }
+                },
                 onAddClick = {},
                 showAddButton = false,
                 onProfileClick = {
@@ -116,11 +120,15 @@ fun AppNavGraph(
                 onGoToCart = {
                     navController.navigate(Routes.CART_LIST) { launchSingleTop = true }
                 },
+                onAddToCart = { service ->
+                    cartViewModel.prepareAddToCart(service)
+                    navController.navigate(Routes.CART_ITEM_DETAIL) { launchSingleTop = true }
+                },
                 isAdmin = role == AccountRole.ADMIN,
                 onEditClick = { id -> navController.navigate(Routes.catalogForm(id)) },
                 onBuyNow = { service ->
-                    cartViewModel.buyNow(service)
-                    navController.navigate(Routes.CHECKOUT) { launchSingleTop = true }
+                    cartViewModel.prepareDirectOrder(service)
+                    navController.navigate(Routes.CART_ITEM_DETAIL) { launchSingleTop = true }
                 }
             )
         }
@@ -231,6 +239,21 @@ fun AppNavGraph(
                 viewModel = cartViewModel,
                 onNavigateBack = {
                     navController.popBackStack()
+                },
+                onNavigateToCart = {
+                    navController.popBackStack()
+                    navController.navigate(Routes.CART_LIST) {
+                        popUpTo(navController.graph.findStartDestination().id) {
+                            saveState = true
+                        }
+                        launchSingleTop = true
+                        restoreState = true
+                    }
+                },
+                onNavigateToCheckout = {
+                    navController.navigate(Routes.CHECKOUT) {
+                        launchSingleTop = true
+                    }
                 }
             )
         }

@@ -18,12 +18,10 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import coil.compose.AsyncImage
 import com.example.genksuruh.core.theme.*
-import com.example.genksuruh.feature.cart.components.QuantitySelector
 import java.time.LocalDate
 import java.time.YearMonth
 import java.time.format.DateTimeFormatter
@@ -39,10 +37,20 @@ import java.util.Locale
 fun CartItemDetailScreen(
     viewModel: CartViewModel,
     onNavigateBack: () -> Unit,
+    onNavigateToCart: () -> Unit = {},
+    onNavigateToCheckout: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     val uiState by viewModel.uiState.collectAsState()
-    val item = uiState.editingItem
+    var cachedItem by remember { mutableStateOf<CartItem?>(null) }
+
+    LaunchedEffect(uiState.editingItem) {
+        if (uiState.editingItem != null) {
+            cachedItem = uiState.editingItem
+        }
+    }
+
+    val item = uiState.editingItem ?: cachedItem
 
     if (item == null) {
         MissingCartItemContent(
@@ -55,8 +63,11 @@ fun CartItemDetailScreen(
     key(item.id) {
         CartItemDetailContent(
             item = item,
+            uiState = uiState,
             viewModel = viewModel,
             onNavigateBack = onNavigateBack,
+            onNavigateToCart = onNavigateToCart,
+            onNavigateToCheckout = onNavigateToCheckout,
             modifier = modifier
         )
     }
@@ -66,39 +77,52 @@ fun CartItemDetailScreen(
 @Composable
 private fun CartItemDetailContent(
     item: CartItem,
+    uiState: CartUiState,
     viewModel: CartViewModel,
     onNavigateBack: () -> Unit,
+    onNavigateToCart: () -> Unit,
+    onNavigateToCheckout: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     var showDatePicker by remember { mutableStateOf(false) }
     var showTimePicker by remember { mutableStateOf(false) }
     var isEditingLocation by remember { mutableStateOf(false) }
     var showValidationError by remember { mutableStateOf(false) }
-    var showSavedBanner by remember { mutableStateOf(false) }
 
     val locationError = showValidationError && item.location.isBlank()
     val dateError = showValidationError && item.date.isBlank()
     val timeError = showValidationError && item.time.isBlank()
 
-    fun handleSave() {
-        val isValid = item.location.isNotBlank() &&
-                item.date.isNotBlank() &&
-                item.time.isNotBlank()
+    fun handleConfirm() {
+        val sanitizedLocation = item.location.ifBlank { "Area Kampus UB" }
+        val sanitizedDate = item.date.ifBlank { "17 November 2026" }
+        val sanitizedTime = item.time.ifBlank { "12.00 WIB" }
 
-        if (!isValid) {
-            showValidationError = true
-            showSavedBanner = false
-            return
+        viewModel.updateEditingLocation(sanitizedLocation)
+        viewModel.updateEditingDate(sanitizedDate)
+        viewModel.updateEditingTime(sanitizedTime)
+
+        when (uiState.detailMode) {
+            CartDetailMode.DIRECT_ORDER -> {
+                viewModel.confirmDirectOrder {
+                    if (onNavigateToCheckout != null) {
+                        onNavigateToCheckout()
+                    } else {
+                        onNavigateToCart()
+                    }
+                }
+            }
+            CartDetailMode.ADD_TO_CART -> {
+                viewModel.confirmAddToCart {
+                    onNavigateToCart()
+                }
+            }
+            CartDetailMode.EDIT_CART_ITEM -> {
+                viewModel.confirmEditCartItem {
+                    onNavigateToCart()
+                }
+            }
         }
-
-        viewModel.saveEditingItem()
-
-        // Ambil kembali data terbaru supaya form tetap menampilkan
-        // hasil perubahan pada layar Save Success.
-        viewModel.startEditingItem(item.id)
-
-        showValidationError = false
-        showSavedBanner = true
     }
 
     fun handleCancel() {
@@ -116,8 +140,9 @@ private fun CartItemDetailContent(
         },
         bottomBar = {
             CartDetailBottomBar(
+                detailMode = uiState.detailMode,
                 onCancel = ::handleCancel,
-                onSave = ::handleSave
+                onConfirm = ::handleConfirm
             )
         }
     ) { innerPadding ->
@@ -136,13 +161,6 @@ private fun CartItemDetailContent(
                 verticalArrangement = Arrangement.spacedBy(14.dp)
             ) {
                 Spacer(modifier = Modifier.height(2.dp))
-
-                // FRAME: SAVE SUCCESS
-                if (showSavedBanner) {
-                    SaveSuccessBanner(
-                        onBackToCart = ::handleCancel
-                    )
-                }
 
                 // FRAME: VALIDATION ERROR
                 if (showValidationError &&
@@ -164,7 +182,6 @@ private fun CartItemDetailContent(
                     },
                     onLocationChange = {
                         viewModel.updateEditingLocation(it)
-                        showSavedBanner = false
                         showValidationError = false
                     }
                 )
@@ -188,16 +205,11 @@ private fun CartItemDetailContent(
                     note = item.note,
                     onNoteChange = {
                         viewModel.updateEditingNote(it.take(200))
-                        showSavedBanner = false
                     }
                 )
 
-                // 5. Quantity dan rincian harga
-                QuantityAndPriceSection(
-                    item = item,
-                    onIncrease = viewModel::increaseEditingQuantity,
-                    onDecrease = viewModel::decreaseEditingQuantity
-                )
+                // 5. Total harga
+                PriceSection(item = item)
 
                 Spacer(modifier = Modifier.height(12.dp))
             }
@@ -215,7 +227,6 @@ private fun CartItemDetailContent(
                 viewModel.updateEditingDate(formatCartDate(selectedDate))
                 showDatePicker = false
                 showValidationError = false
-                showSavedBanner = false
             }
         )
     }
@@ -231,7 +242,6 @@ private fun CartItemDetailContent(
                 viewModel.updateEditingTime(selectedTime)
                 showTimePicker = false
                 showValidationError = false
-                showSavedBanner = false
             }
         )
     }
@@ -325,7 +335,7 @@ private fun ServiceInformationCard(
                         )
                     } else {
                         Icon(
-                            imageVector = Icons.Filled.ShoppingBag,
+                            imageVector = Icons.Filled.ShoppingCartCheckout,
                             contentDescription = null,
                             tint = Primary700,
                             modifier = Modifier.size(32.dp)
@@ -753,99 +763,39 @@ private fun NotesSection(
 }
 
 // ============================================================
-// QUANTITY AND PRICE SECTION
+// PRICE SECTION (TANPA QUANTITY SELECTOR)
 // ============================================================
 
 @Composable
-private fun QuantityAndPriceSection(
-    item: CartItem,
-    onIncrease: () -> Unit,
-    onDecrease: () -> Unit
+private fun PriceSection(
+    item: CartItem
 ) {
-    val subtotal = item.price * item.quantity
-
     FormSectionCard {
-        Row(
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = "Jumlah Pesanan",
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.SemiBold
-                )
-
-                Spacer(modifier = Modifier.height(3.dp))
-
-                Text(
-                    text = "Minimal 1 pesanan",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-
-            QuantitySelector(
-                quantity = item.quantity,
-                onIncrease = onIncrease,
-                onDecrease = onDecrease
-            )
-        }
-
-        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-
-        PriceRow(
-            label = "Harga Satuan",
-            value = formatRupiah(item.price)
+        Text(
+            text = "Total Ongkos Jasa",
+            style = MaterialTheme.typography.titleSmall,
+            fontWeight = FontWeight.SemiBold
         )
-
-        PriceRow(
-            label = "Jumlah Pesanan",
-            value = "${item.quantity}x"
-        )
-
-        Spacer(modifier = Modifier.height(2.dp))
 
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
-                text = "Subtotal",
-                style = MaterialTheme.typography.titleMedium
+                text = formatRupiah(item.price),
+                style = MaterialTheme.typography.headlineSmall,
+                color = Primary700,
+                fontWeight = FontWeight.Bold
             )
 
             Spacer(modifier = Modifier.weight(1f))
 
             Text(
-                text = formatRupiah(subtotal),
-                style = MaterialTheme.typography.titleLarge,
-                color = Primary700,
-                fontWeight = FontWeight.Bold
+                text = "1x pesanan",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
-    }
-}
-
-@Composable
-private fun PriceRow(
-    label: String,
-    value: String
-) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween
-    ) {
-        Text(
-            text = label,
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-
-        Text(
-            text = value,
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurface
-        )
     }
 }
 
@@ -874,13 +824,14 @@ private fun FormSectionCard(
 }
 
 // ============================================================
-// BOTTOM ACTION
+// BOTTOM ACTION (3 VARIASI)
 // ============================================================
 
 @Composable
 private fun CartDetailBottomBar(
+    detailMode: CartDetailMode,
     onCancel: () -> Unit,
-    onSave: () -> Unit
+    onConfirm: () -> Unit
 ) {
     Surface(
         color = MaterialTheme.colorScheme.surface,
@@ -896,8 +847,8 @@ private fun CartDetailBottomBar(
             OutlinedButton(
                 onClick = onCancel,
                 modifier = Modifier
-                    .weight(0.3f)
-                    .height(42.dp),
+                    .weight(0.35f)
+                    .height(44.dp),
                 shape = RoundedCornerShape(12.dp),
                 colors = ButtonDefaults.outlinedButtonColors(
                     containerColor = Primary100,
@@ -916,10 +867,10 @@ private fun CartDetailBottomBar(
             }
 
             Button(
-                onClick = onSave,
+                onClick = onConfirm,
                 modifier = Modifier
-                    .weight(0.7f)
-                    .height(42.dp),
+                    .weight(0.65f)
+                    .height(44.dp),
                 shape = RoundedCornerShape(12.dp),
                 colors = ButtonDefaults.buttonColors(
                     containerColor = Secondary500
@@ -930,7 +881,7 @@ private fun CartDetailBottomBar(
                 )
             ) {
                 Icon(
-                    imageVector = Icons.Filled.CheckCircleOutline,
+                    imageVector = if (detailMode == CartDetailMode.DIRECT_ORDER) Icons.Filled.ArrowForward else Icons.Filled.CheckCircleOutline,
                     contentDescription = null,
                     modifier = Modifier.size(18.dp)
                 )
@@ -938,8 +889,8 @@ private fun CartDetailBottomBar(
                 Spacer(modifier = Modifier.width(6.dp))
 
                 Text(
-                    text = "Simpan Perubahan",
-                    fontWeight = FontWeight.SemiBold
+                    text = if (detailMode == CartDetailMode.DIRECT_ORDER) "Lanjut Checkout" else "Simpan",
+                    fontWeight = FontWeight.Bold
                 )
             }
         }
@@ -947,7 +898,7 @@ private fun CartDetailBottomBar(
 }
 
 // ============================================================
-// VALIDATION AND SAVE SUCCESS
+// VALIDATION BANNER
 // ============================================================
 
 @Composable
@@ -980,53 +931,6 @@ private fun ValidationErrorBanner() {
                     text = "Mohon lengkapi lokasi tujuan dan waktu pelaksanaan sebelum menyimpan.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onErrorContainer
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun SaveSuccessBanner(
-    onBackToCart: () -> Unit
-) {
-    Surface(
-        modifier = Modifier.fillMaxWidth(),
-        color = Success.copy(alpha = 0.15f),
-        shape = RoundedCornerShape(12.dp)
-    ) {
-        Row(
-            modifier = Modifier.padding(12.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Icon(
-                imageVector = Icons.Filled.CheckCircle,
-                contentDescription = null,
-                tint = Success
-            )
-
-            Spacer(modifier = Modifier.width(8.dp))
-
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = "Data pesanan berhasil diperbarui",
-                    style = MaterialTheme.typography.bodySmall,
-                    fontWeight = FontWeight.SemiBold,
-                    color = Success
-                )
-
-                Text(
-                    text = "Baru saja",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = Success
-                )
-            }
-
-            TextButton(onClick = onBackToCart) {
-                Text(
-                    text = "Kembali ke Keranjang",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = Success
                 )
             }
         }
@@ -1107,8 +1011,6 @@ private fun DatePickerSheet(
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
 
-            // Shortcut tanggal. FlowRow membungkus chip ke baris berikutnya
-            // jika lebar layar tidak cukup, tanpa memecah teks secara vertikal.
             FlowRow(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(6.dp),
@@ -1142,7 +1044,6 @@ private fun DatePickerSheet(
                 }
             }
 
-            // Kalender
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -1264,30 +1165,6 @@ private fun DatePickerSheet(
             }
 
             Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(10.dp))
-                    .background(Primary100.copy(alpha = 0.7f))
-                    .padding(10.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Icon(
-                    Icons.Filled.VerifiedUser,
-                    contentDescription = null,
-                    tint = Primary700,
-                    modifier = Modifier.size(18.dp)
-                )
-
-                Spacer(modifier = Modifier.width(8.dp))
-
-                Text(
-                    text = "Penjemputan disesuaikan dengan jam operasional kampus (08.00–18.00).",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-
-            Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
@@ -1363,8 +1240,6 @@ private fun TimePickerDialogContent(
     val timeState = rememberTimePickerState(
         initialHour = initial.first,
         initialMinute = initial.second,
-        // Tampilan dial memakai 1-12 dan menyediakan pilihan AM/PM.
-        // Nilai state.hour tetap 0-23 sehingga bisa disimpan sebagai WIB 24 jam.
         is24Hour = false
     )
 

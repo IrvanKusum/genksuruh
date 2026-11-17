@@ -1,4 +1,3 @@
-
 package com.example.genksuruh.feature.cart
 
 import androidx.compose.foundation.background
@@ -58,6 +57,7 @@ import com.example.genksuruh.feature.cart.components.VoucherSection
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.ui.graphics.Color
 
 @Composable
 fun CheckoutScreen(
@@ -68,13 +68,23 @@ fun CheckoutScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val selectedItems = uiState.selectedItems
+    val displayItems = selectedItems.ifEmpty { uiState.lastCheckoutSummary?.items ?: emptyList() }
 
-    val canPlaceOrder = selectedItems.isNotEmpty() &&
+    val canPlaceOrder = displayItems.isNotEmpty() &&
             !uiState.isLoading &&
             !uiState.isError &&
             !uiState.isCheckoutProcessing &&
+            uiState.checkoutProcessStatus != CheckoutProcessStatus.SUCCESS &&
             uiState.isWatuPayBalanceSufficient &&
             uiState.voucherStatus != VoucherStatus.VALIDATING
+
+    val showEmptyState = displayItems.isEmpty() &&
+            uiState.checkoutProcessStatus != CheckoutProcessStatus.SUCCESS &&
+            uiState.lastCheckoutSummary == null &&
+            !uiState.isCheckoutProcessing
+
+    val isProcessingOrSuccess = uiState.isCheckoutProcessing ||
+            uiState.checkoutProcessStatus == CheckoutProcessStatus.SUCCESS
 
     Scaffold(
         modifier = modifier.fillMaxSize(),
@@ -88,14 +98,33 @@ fun CheckoutScreen(
                 isEnabled = canPlaceOrder,
                 isBalanceSufficient = uiState.isWatuPayBalanceSufficient,
                 balanceShortfall = uiState.balanceShortfall,
-                isProcessing = uiState.isCheckoutProcessing,
+                isProcessing = isProcessingOrSuccess,
                 onPlaceOrder = onPlaceOrder,
                 onBackToCart = onNavigateBack
             )
         }
     ) { innerPadding ->
 
-        if (selectedItems.isEmpty()) {
+        if (isProcessingOrSuccess) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(innerPadding),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    CircularProgressIndicator(color = Primary700)
+                    Text(
+                        text = "Memproses pesanan...",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+        } else if (showEmptyState) {
             EmptyCheckoutContent(
                 modifier = Modifier
                     .fillMaxSize()
@@ -123,13 +152,13 @@ fun CheckoutScreen(
                 item(key = "checkout_order_title") {
                     SectionHeading(
                         title = "Ringkasan Pesanan",
-                        trailing = "${selectedItems.size} Jasa",
+                        trailing = "${displayItems.size} Jasa",
                         icon = Icons.Filled.CheckCircle
                     )
                 }
 
                 item(key = "checkout_order_summary") {
-                    OrderSummaryCard(items = selectedItems)
+                    OrderSummaryCard(items = displayItems)
                 }
 
                 item(key = "checkout_execution_title") {
@@ -140,7 +169,7 @@ fun CheckoutScreen(
                 }
 
                 item(key = "checkout_execution_details") {
-                    CheckoutExecutionCard(items = selectedItems)
+                    CheckoutExecutionCard(items = displayItems)
                 }
 
                 // VOUCHER
@@ -153,6 +182,7 @@ fun CheckoutScreen(
                         minimumTransaction = uiState.voucherMinimumTransaction,
                         discountAmount = uiState.voucherDiscountAmount,
                         subtotal = uiState.subtotal,
+                        availableVouchers = uiState.availableVouchers,
                         onCodeChange = viewModel::updateVoucherCode,
                         onApplyClick = viewModel::applyVoucher,
                         onRemoveClick = viewModel::removeVoucher
@@ -181,7 +211,7 @@ fun CheckoutScreen(
                 }
 
                 item(key = "checkout_payment_summary") {
-                    CheckoutPaymentSummary(
+                    PaymentSummaryCard(
                         subtotal = uiState.subtotal,
                         discount = uiState.voucherDiscountAmount,
                         total = uiState.checkoutTotal
@@ -189,28 +219,7 @@ fun CheckoutScreen(
                 }
 
                 item(key = "checkout_security_note") {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 4.dp, vertical = 2.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.Center
-                    ) {
-                        Icon(
-                            imageVector = Icons.Filled.Security,
-                            contentDescription = null,
-                            tint = Success,
-                            modifier = Modifier.size(17.dp)
-                        )
-
-                        Spacer(modifier = Modifier.width(7.dp))
-
-                        Text(
-                            text = "Pembayaran aman diproses setelah pesanan dikonfirmasi.",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
+                    SecurityNote()
                 }
             }
         }
@@ -236,7 +245,8 @@ private fun CheckoutTopBar(
         IconButton(onClick = onBackClick) {
             Icon(
                 imageVector = Icons.Filled.ArrowBack,
-                contentDescription = "Kembali"
+                contentDescription = "Kembali",
+                tint = MaterialTheme.colorScheme.onSurface
             )
         }
 
@@ -271,38 +281,49 @@ private fun CheckoutTopBar(
 
 @Composable
 private fun CheckoutTrustBanner() {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(12.dp))
-            .background(Primary100.copy(alpha = 0.75f))
-            .padding(horizontal = 12.dp, vertical = 9.dp),
-        verticalAlignment = Alignment.CenterVertically
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        color = Primary100.copy(alpha = 0.65f),
+        shape = RoundedCornerShape(14.dp)
     ) {
-        Icon(
-            imageVector = Icons.Filled.CheckCircle,
-            contentDescription = null,
-            tint = Primary700,
-            modifier = Modifier.size(17.dp)
-        )
+        Row(
+            modifier = Modifier.padding(14.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(38.dp)
+                    .clip(CircleShape)
+                    .background(Primary700),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.Security,
+                    contentDescription = null,
+                    tint = Color.Unspecified,
+                    modifier = Modifier.size(20.dp)
+                )
+            }
 
-        Spacer(modifier = Modifier.width(7.dp))
+            Spacer(modifier = Modifier.width(10.dp))
 
-        Text(
-            text = "GenkSuruh.co • Marketplace jasa mahasiswa UB",
-            modifier = Modifier.weight(1f),
-            style = MaterialTheme.typography.labelSmall,
-            fontWeight = FontWeight.SemiBold,
-            maxLines = 2,
-            overflow = TextOverflow.Ellipsis
-        )
+            Column(
+                modifier = Modifier.weight(1f)
+            ) {
+                Text(
+                    text = "Transaksi Terjamin Aman",
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = Primary700
+                )
 
-        Text(
-            text = "Praktis & Cepat",
-            style = MaterialTheme.typography.labelSmall,
-            color = Success,
-            fontWeight = FontWeight.Bold
-        )
+                Text(
+                    text = "Dana diteruskan ke penyedia setelah tugas selesai.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
     }
 }
 
@@ -313,48 +334,53 @@ private fun CheckoutTrustBanner() {
 @Composable
 private fun SectionHeading(
     title: String,
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
-    trailing: String? = null
+    trailing: String? = null,
+    icon: androidx.compose.ui.graphics.vector.ImageVector
 ) {
     Row(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 6.dp, bottom = 2.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Icon(
             imageVector = icon,
             contentDescription = null,
-            tint = MaterialTheme.colorScheme.primary,
-            modifier = Modifier.size(19.dp)
+            tint = Primary700,
+            modifier = Modifier.size(18.dp)
         )
 
-        Spacer(modifier = Modifier.width(6.dp))
+        Spacer(modifier = Modifier.width(7.dp))
 
         Text(
             text = title,
             style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.SemiBold
+            fontWeight = FontWeight.Bold
         )
 
-        if (trailing != null) {
+        if (!trailing.isNullOrBlank()) {
             Spacer(modifier = Modifier.weight(1f))
 
             Text(
                 text = trailing,
                 style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                color = Primary700,
+                fontWeight = FontWeight.SemiBold
             )
         }
     }
 }
 
 // ============================================================
-// EXECUTION DETAILS
+// EXECUTION DETAILS CARD
 // ============================================================
 
 @Composable
 private fun CheckoutExecutionCard(
     items: List<CartItem>
 ) {
+    val first = items.firstOrNull() ?: return
+
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(16.dp),
@@ -365,233 +391,162 @@ private fun CheckoutExecutionCard(
     ) {
         Column(
             modifier = Modifier.padding(14.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+            verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            items.forEachIndexed { index, item ->
+            Row(
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.LocationOn,
+                    contentDescription = null,
+                    tint = Primary700,
+                    modifier = Modifier.size(17.dp)
+                )
 
-                if (items.size > 1) {
+                Spacer(modifier = Modifier.width(6.dp))
+
+                Column {
                     Text(
-                        text = item.serviceName,
-                        style = MaterialTheme.typography.titleSmall,
-                        fontWeight = FontWeight.SemiBold,
-                        color = Primary700
+                        text = "Lokasi Pelaksanaan",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+
+                    Text(
+                        text = first.location,
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.SemiBold
                     )
                 }
+            }
 
-                ExecutionDetailRow(
-                    icon = Icons.Filled.LocationOn,
-                    label = "Lokasi Pengantaran",
-                    value = item.location
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+
+            Row(
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.CalendarMonth,
+                    contentDescription = null,
+                    tint = Primary700,
+                    modifier = Modifier.size(17.dp)
                 )
 
-                ExecutionDetailRow(
-                    icon = Icons.Filled.CalendarMonth,
-                    label = "Waktu Pelaksanaan",
-                    value = "${item.date} • ${item.time}"
+                Spacer(modifier = Modifier.width(6.dp))
+
+                Column {
+                    Text(
+                        text = "Waktu Pelaksanaan",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+
+                    Text(
+                        text = "${first.date} • ${first.time}",
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
+            }
+
+            if (items.size > 1) {
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+
+                Text(
+                    text = "+ ${items.size - 1} jasa lainnya dengan jadwal dan lokasi masing-masing.",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = Primary700,
+                    fontWeight = FontWeight.Medium
                 )
-
-                if (item.note.isNotBlank()) {
-                    ExecutionDetailRow(
-                        icon = Icons.Filled.Info,
-                        label = "Catatan Tambahan Pemesan",
-                        value = item.note,
-                        italic = true
-                    )
-                }
-
-                if (index != items.lastIndex) {
-                    HorizontalDivider(
-                        color = MaterialTheme.colorScheme.outlineVariant.copy(
-                            alpha = 0.7f
-                        )
-                    )
-                }
             }
         }
     }
 }
 
-@Composable
-private fun ExecutionDetailRow(
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
-    label: String,
-    value: String,
-    italic: Boolean = false
-) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.Top
-    ) {
-        Box(
-            modifier = Modifier
-                .size(34.dp)
-                .clip(RoundedCornerShape(9.dp))
-                .background(Primary100),
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(
-                imageVector = icon,
-                contentDescription = null,
-                tint = Primary700,
-                modifier = Modifier.size(18.dp)
-            )
-        }
-
-        Spacer(modifier = Modifier.width(10.dp))
-
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = label,
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-
-            Spacer(modifier = Modifier.height(2.dp))
-
-            Text(
-                text = value,
-                style = MaterialTheme.typography.bodyMedium,
-                fontWeight = FontWeight.Medium,
-                color = MaterialTheme.colorScheme.onSurface
-            )
-        }
-    }
-}
-
 // ============================================================
-// WATUPAY METHOD
+// WATUPAY PAYMENT METHOD CARD
 // ============================================================
-
 
 @Composable
 private fun WatuPayMethodCard(
     balance: Long,
     total: Long
 ) {
-    val shortfall = (total - balance).coerceAtLeast(0L)
-    val isSufficient = shortfall == 0L
+    val isSufficient = balance >= total
 
-    Column(
+    Card(
         modifier = Modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(9.dp)
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surface
+        ),
+        elevation = CardDefaults.cardElevation(1.dp)
     ) {
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(16.dp),
-            colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.surface
-            ),
-            elevation = CardDefaults.cardElevation(1.dp)
+        Row(
+            modifier = Modifier.padding(14.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Row(
+            Box(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(14.dp),
-                verticalAlignment = Alignment.CenterVertically
+                    .size(44.dp)
+                    .clip(CircleShape)
+                    .background(Primary100),
+                contentAlignment = Alignment.Center
             ) {
-                Box(
-                    modifier = Modifier
-                        .size(44.dp)
-                        .clip(RoundedCornerShape(11.dp))
-                        .background(
-                            if (isSufficient) {
-                                Primary100
-                            } else {
-                                MaterialTheme.colorScheme.errorContainer
-                            }
-                        ),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = Icons.Filled.AccountBalanceWallet,
-                        contentDescription = "WatuPay",
-                        tint = if (isSufficient) {
-                            Primary700
-                        } else {
-                            MaterialTheme.colorScheme.error
-                        },
-                        modifier = Modifier.size(24.dp)
-                    )
-                }
-
-                Spacer(modifier = Modifier.width(12.dp))
-
-                Column(
-                    modifier = Modifier.weight(1f),
-                    verticalArrangement = Arrangement.spacedBy(3.dp)
-                ) {
-                    Text(
-                        text = "WatuPay Saldo",
-                        style = MaterialTheme.typography.titleSmall,
-                        fontWeight = FontWeight.SemiBold
-                    )
-
-                    Text(
-                        text = "Sisa Saldo: ${formatRupiah(balance)}",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = if (isSufficient) {
-                            MaterialTheme.colorScheme.onSurfaceVariant
-                        } else {
-                            MaterialTheme.colorScheme.error
-                        },
-                        fontWeight = if (isSufficient) {
-                            FontWeight.Normal
-                        } else {
-                            FontWeight.SemiBold
-                        }
-                    )
-                }
+                Icon(
+                    imageVector = Icons.Filled.AccountBalanceWallet,
+                    contentDescription = null,
+                    tint = Primary700,
+                    modifier = Modifier.size(24.dp)
+                )
             }
-        }
 
-        // Peringatan saldo kurang berada di bawah WatuPay.
-        // Tidak menggunakan banner merah besar di bagian atas.
+            Spacer(modifier = Modifier.width(12.dp))
 
-        if (!isSufficient) {
             Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 4.dp),
-                verticalArrangement = Arrangement.spacedBy(3.dp)
+                modifier = Modifier.weight(1f)
             ) {
-                Row(
-                    verticalAlignment = Alignment.Top
-                ) {
-                    Icon(
-                        imageVector = Icons.Filled.Info,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.error,
-                        modifier = Modifier.size(16.dp)
-                    )
+                Text(
+                    text = "WatuPay Saldo",
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Bold
+                )
 
-                    Spacer(modifier = Modifier.width(6.dp))
-
-                    Text(
-                        text = "Selesaikan kekurangan dengan mengurangi jasa di keranjang.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.error
-                    )
-                }
+                Spacer(modifier = Modifier.height(2.dp))
 
                 Text(
-                    text = "Kurang ${formatRupiah(shortfall)}",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.error,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier.padding(start = 22.dp)
+                    text = "Saldo tersedia: ${formatRupiah(balance)}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = if (isSufficient) {
+                        MaterialTheme.colorScheme.onSurfaceVariant
+                    } else {
+                        MaterialTheme.colorScheme.error
+                    }
+                )
+            }
+
+            Surface(
+                shape = RoundedCornerShape(50),
+                color = Success
+            ) {
+                Text(
+                    text = "Utama",
+                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = Color.White,
+                    fontWeight = FontWeight.Bold
                 )
             }
         }
     }
 }
 
-
 // ============================================================
-// PAYMENT SUMMARY
+// PAYMENT SUMMARY CARD
 // ============================================================
 
 @Composable
-private fun CheckoutPaymentSummary(
+private fun PaymentSummaryCard(
     subtotal: Long,
     discount: Long,
     total: Long
@@ -605,37 +560,21 @@ private fun CheckoutPaymentSummary(
         elevation = CardDefaults.cardElevation(1.dp)
     ) {
         Column(
-            modifier = Modifier.padding(14.dp),
+            modifier = Modifier.padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            PaymentSummaryRow(
-                label = "Subtotal Pesanan",
-                value = formatRupiah(subtotal)
-            )
+            CheckoutPriceRow(label = "Subtotal Jasa", value = formatRupiah(subtotal))
+            CheckoutPriceRow(label = "Biaya Layanan Kampus", value = "Rp0 (Gratis)", valueColor = Success)
 
-            PaymentSummaryRow(
-                label = "Biaya Layanan Kampus",
-                value = "Gratis",
-                valueColor = Success
-            )
+            if (discount > 0) {
+                CheckoutPriceRow(
+                    label = "Diskon Voucher",
+                    value = "-${formatRupiah(discount)}",
+                    valueColor = Success
+                )
+            }
 
-            PaymentSummaryRow(
-                label = "Diskon Voucher",
-                value = if (discount > 0) {
-                    "-${formatRupiah(discount)}"
-                } else {
-                    "Rp0 (Belum ada voucher)"
-                },
-                valueColor = if (discount > 0) {
-                    Success
-                } else {
-                    MaterialTheme.colorScheme.onSurfaceVariant
-                }
-            )
-
-            HorizontalDivider(
-                color = MaterialTheme.colorScheme.outlineVariant
-            )
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -651,18 +590,9 @@ private fun CheckoutPaymentSummary(
 
                 Text(
                     text = formatRupiah(total),
-                    style = MaterialTheme.typography.headlineSmall,
+                    style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.Bold,
                     color = Primary700
-                )
-            }
-
-            if (discount > 0) {
-                Text(
-                    text = "Hemat ${formatRupiah(discount)} dengan voucher!",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = Success,
-                    fontWeight = FontWeight.SemiBold
                 )
             }
         }
@@ -670,39 +600,64 @@ private fun CheckoutPaymentSummary(
 }
 
 @Composable
-private fun PaymentSummaryRow(
+private fun CheckoutPriceRow(
     label: String,
     value: String,
-    valueColor: androidx.compose.ui.graphics.Color =
-        MaterialTheme.colorScheme.onSurface
+    valueColor: Color = MaterialTheme.colorScheme.onSurface
 ) {
     Row(
         modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
         Text(
             text = label,
-            modifier = Modifier.weight(1f),
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
 
         Text(
             text = value,
-            modifier = Modifier.weight(1.2f),
             style = MaterialTheme.typography.bodyMedium,
             fontWeight = FontWeight.Medium,
-            color = valueColor,
-            textAlign = TextAlign.End
+            color = valueColor
         )
     }
 }
 
 // ============================================================
-// BOTTOM ACTION
+// SECURITY NOTE
 // ============================================================
 
+@Composable
+private fun SecurityNote() {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.Center
+    ) {
+        Icon(
+            imageVector = Icons.Filled.Lock,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.size(13.dp)
+        )
+
+        Spacer(modifier = Modifier.width(6.dp))
+
+        Text(
+            text = "Pembayaran aman dan terenkripsi secara end-to-end",
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+    }
+}
+
+// ============================================================
+// BOTTOM BAR
+// ============================================================
 
 @Composable
 private fun CheckoutBottomBar(
@@ -722,115 +677,100 @@ private fun CheckoutBottomBar(
             modifier = Modifier
                 .fillMaxWidth()
                 .navigationBarsPadding()
-                .padding(horizontal = 16.dp, vertical = 9.dp),
+                .padding(horizontal = 16.dp, vertical = 10.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
+            if (!isBalanceSufficient) {
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.5f),
+                    shape = RoundedCornerShape(10.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.padding(10.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.Info,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.error,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "Saldo kurang ${formatRupiah(balanceShortfall)}. Silakan top up WatuPay.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onErrorContainer,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
+                }
+            }
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 Column(
-                    modifier = Modifier.weight(1f)
+                    modifier = Modifier.weight(0.4f)
                 ) {
                     Text(
-                        text = "TOTAL PEMBAYARAN",
+                        text = "Total Tagihan",
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
 
                     Text(
                         text = formatRupiah(total),
-                        style = MaterialTheme.typography.titleLarge,
-                        color = Primary700,
-                        fontWeight = FontWeight.Bold
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = Primary700
                     )
                 }
 
-                if (!isBalanceSufficient) {
-                    Column(
-                        horizontalAlignment = Alignment.End
-                    ) {
-                        Text(
-                            text = "Perlu tambahan",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.error
+                Button(
+                    onClick = onPlaceOrder,
+                    enabled = isEnabled && !isProcessing,
+                    modifier = Modifier
+                        .weight(0.6f)
+                        .height(48.dp),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Secondary500
+                    )
+                ) {
+                    if (isProcessing) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(20.dp),
+                            color = Color.White,
+                            strokeWidth = 2.dp
                         )
-
+                        Spacer(modifier = Modifier.width(8.dp))
                         Text(
-                            text = "Kurang ${formatRupiah(balanceShortfall)}",
-                            style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.error,
+                            text = "Memproses...",
                             fontWeight = FontWeight.Bold
                         )
+                    } else {
+                        Text(
+                            text = "Pesan Sekarang",
+                            fontWeight = FontWeight.Bold
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Icon(
+                            imageVector = Icons.Filled.ArrowForward,
+                            contentDescription = null,
+                            modifier = Modifier.size(16.dp)
+                        )
                     }
-                }
-            }
-
-            Button(
-                onClick = onPlaceOrder,
-                enabled = isEnabled && !isProcessing,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(46.dp),
-                shape = RoundedCornerShape(11.dp),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = Secondary500
-                )
-            ) {
-                if (isProcessing) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(19.dp),
-                        color = MaterialTheme.colorScheme.onPrimary,
-                        strokeWidth = 2.dp
-                    )
-
-                    Spacer(modifier = Modifier.width(7.dp))
-
-                    Text("Memproses Pesanan...")
-                } else {
-                    Text(
-                        text = "Pesan Sekarang",
-                        fontWeight = FontWeight.Bold
-                    )
-
-                    Spacer(modifier = Modifier.width(5.dp))
-
-                    Icon(
-                        imageVector = Icons.Filled.ArrowForward,
-                        contentDescription = null,
-                        modifier = Modifier.size(17.dp)
-                    )
-                }
-            }
-
-            if (!isBalanceSufficient) {
-                OutlinedButton(
-                    onClick = onBackToCart,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(42.dp),
-                    shape = RoundedCornerShape(11.dp),
-                    colors = ButtonDefaults.outlinedButtonColors(
-                        containerColor = Primary100,
-                        contentColor = Primary700
-                    ),
-                    border = null
-                ) {
-                    Text(
-                        text = "Kembali ke Keranjang (Sesuaikan Item)",
-                        style = MaterialTheme.typography.labelMedium,
-                        fontWeight = FontWeight.SemiBold
-                    )
                 }
             }
         }
     }
 }
 
-
 // ============================================================
-// EMPTY CHECKOUT
+// EMPTY CHECKOUT CONTENT
 // ============================================================
 
 @Composable
@@ -839,15 +779,16 @@ private fun EmptyCheckoutContent(
     onBackClick: () -> Unit
 ) {
     Column(
-        modifier = modifier.padding(24.dp),
+        modifier = modifier
+            .padding(24.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
         Icon(
             imageVector = Icons.Filled.Info,
             contentDescription = null,
-            modifier = Modifier.size(48.dp),
-            tint = MaterialTheme.colorScheme.onSurfaceVariant
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.size(48.dp)
         )
 
         Spacer(modifier = Modifier.height(12.dp))
@@ -858,11 +799,11 @@ private fun EmptyCheckoutContent(
             fontWeight = FontWeight.SemiBold
         )
 
-        Spacer(modifier = Modifier.height(6.dp))
+        Spacer(modifier = Modifier.height(8.dp))
 
         Text(
-            text = "Pilih minimal satu jasa dari keranjang terlebih dahulu.",
-            style = MaterialTheme.typography.bodyMedium,
+            text = "Pilih jasa terlebih dahulu dari keranjang atau katalog.",
+            textAlign = TextAlign.Center,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
 

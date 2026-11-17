@@ -1,48 +1,23 @@
 package com.example.genksuruh.feature.cart
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.AccountCircle
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.ArrowForward
+import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.DeleteOutline
-import androidx.compose.material.icons.filled.Explore
-import androidx.compose.material.icons.filled.Notifications
-import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material.icons.filled.ShoppingCartCheckout
-import androidx.compose.material.icons.filled.WifiOff
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Checkbox
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SnackbarDuration
-import androidx.compose.material3.SnackbarHost
-import androidx.compose.material3.SnackbarHostState
-import androidx.compose.material3.SnackbarResult
-import androidx.compose.material3.Text
+import androidx.compose.material.icons.filled.LocalOffer
+import androidx.compose.material.icons.filled.Remove
+import androidx.compose.material.icons.filled.ShoppingCart
+import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -51,33 +26,21 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.tooling.preview.Preview
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.example.genksuruh.core.theme.Danger
-import com.example.genksuruh.core.theme.GenkSuruhTheme
 import com.example.genksuruh.core.theme.Primary100
 import com.example.genksuruh.core.theme.Primary700
-import com.example.genksuruh.feature.cart.components.CartItemCard
-import com.example.genksuruh.feature.cart.components.CartSummaryCard
-import androidx.compose.foundation.clickable
-import androidx.compose.material.icons.filled.ArrowForward
-import androidx.compose.material.icons.filled.LocalOffer
-import androidx.compose.material.icons.filled.Security
-import androidx.compose.material3.Surface
 import com.example.genksuruh.core.theme.Secondary500
-import com.example.genksuruh.core.theme.Success
-import androidx.compose.foundation.layout.offset
+import com.example.genksuruh.feature.cart.components.CartItemCard
+
+// ============================================================
+// MAIN SCREEN
+// ============================================================
 
 /**
- * Entry point berstatus (terhubung ke [CartViewModel]) untuk route CART_LIST.
+ * Screen utama Keranjang (Cart).
  * Hanya bertugas mengumpulkan state & meneruskan aksi -- semua tampilan ada di [CartScreenContent].
- *
- * `onNavigateToItemDetail` dan `onNavigateToCheckout` sengaja disiapkan sebagai callback
- * kosong (TODO) karena route CART_ITEM_DETAIL dan CHECKOUT, serta layar tujuannya, belum
- * ada di NavGraph pada tahap ini. Setelah layar tersebut dibuat, NavGraph cukup mengisi
- * kedua callback ini dengan `navController.navigate(...)`.
  */
 @Composable
 fun CartScreen(
@@ -104,7 +67,8 @@ fun CartScreen(
         onEditItemClick = onNavigateToItemDetail,
         onCheckoutClick = onNavigateToCheckout,
         onExploreServicesClick = onNavigateToCatalog,
-        onViewVouchersClick = onNavigateToPromo
+        onViewVouchersClick = onNavigateToPromo,
+        onDismissNotification = viewModel::dismissNotificationMessage
     )
 }
 
@@ -130,9 +94,22 @@ fun CartScreenContent(
     onCheckoutClick: () -> Unit,
     onExploreServicesClick: () -> Unit,
     onViewVouchersClick: () -> Unit = {},
+    onDismissNotification: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val snackbarHostState = remember { SnackbarHostState() }
+
+    // Memunculkan Snackbar untuk userNotificationMessage (e.g. "Pesanan berhasil disimpan di keranjang" / "Detail pesanan berhasil diedit")
+    LaunchedEffect(uiState.userNotificationMessage) {
+        val msg = uiState.userNotificationMessage
+        if (!msg.isNullOrBlank()) {
+            snackbarHostState.showSnackbar(
+                message = msg,
+                duration = SnackbarDuration.Short
+            )
+            onDismissNotification()
+        }
+    }
 
     // Memunculkan Snackbar Undo setiap kali ViewModel menandai ada item yang baru dihapus.
     LaunchedEffect(uiState.showUndoSnackbar) {
@@ -184,8 +161,8 @@ fun CartScreenContent(
             }
 
             if (uiState.showDeleteDialog && uiState.itemPendingDelete != null) {
-                CartDeleteDialog(
-                    serviceName = uiState.itemPendingDelete.serviceName,
+                DeleteConfirmationDialog(
+                    itemName = uiState.itemPendingDelete!!.serviceName,
                     onConfirm = onConfirmDelete,
                     onDismiss = onDismissDeleteDialog
                 )
@@ -194,53 +171,190 @@ fun CartScreenContent(
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+// ============================================================
+// SUB-COMPONENTS (STATLESS)
+// ============================================================
+
+@Composable
+private fun DeleteConfirmationDialog(
+    itemName: String,
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Hapus Jasa") },
+        text = { Text("Apakah Anda yakin ingin menghapus \"$itemName\" dari keranjang?") },
+        confirmButton = {
+            TextButton(onClick = onConfirm) {
+                Text("Hapus", color = MaterialTheme.colorScheme.error)
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Batal")
+            }
+        }
+    )
+}
 
 @Composable
 private fun CartTopBar(itemCount: Int) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(56.dp)
-            .background(MaterialTheme.colorScheme.background)
-            .padding(horizontal = 16.dp),
-        verticalAlignment = Alignment.CenterVertically
+    Surface(
+        color = MaterialTheme.colorScheme.background,
+        shadowElevation = 1.dp
     ) {
-        Column(
-            modifier = Modifier.weight(1f),
-            verticalArrangement = Arrangement.Center
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(56.dp)
+                .padding(horizontal = 16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
         ) {
             Text(
                 text = "Keranjang Saya",
                 style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.SemiBold
+                fontWeight = FontWeight.Bold
             )
 
+            Surface(
+                shape = RoundedCornerShape(50),
+                color = Primary100
+            ) {
+                Text(
+                    text = "$itemCount Jasa",
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = Primary700,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun CartLoadingContent() {
+    Box(
+        modifier = Modifier.fillMaxSize(),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            CircularProgressIndicator(color = Primary700)
             Text(
-                text = "$itemCount jasa di keranjang",
-                style = MaterialTheme.typography.bodySmall,
+                text = "Memuat keranjang...",
+                style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
-
-        IconButton(onClick = { /* Notifikasi */ }) {
-            Icon(
-                imageVector = Icons.Filled.Notifications,
-                contentDescription = "Notifikasi"
-            )
-        }
-
-        IconButton(onClick = { /* Profil */ }) {
-            Icon(
-                imageVector = Icons.Filled.AccountCircle,
-                contentDescription = "Profil"
             )
         }
     }
 }
 
+@Composable
+private fun CartErrorContent(
+    message: String,
+    onRetryClick: () -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(24.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
+        Icon(
+            imageVector = Icons.Filled.DeleteOutline,
+            contentDescription = null,
+            modifier = Modifier.size(48.dp),
+            tint = MaterialTheme.colorScheme.error
+        )
 
-/** FRAME 1 / 2 / 3 / 4 — daftar item, select all, dan ringkasan harga. */
+        Spacer(modifier = Modifier.height(12.dp))
+
+        Text(
+            text = "Gagal Memuat Keranjang",
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold
+        )
+
+        Spacer(modifier = Modifier.height(6.dp))
+
+        Text(
+            text = message,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = TextAlign.Center
+        )
+
+        Spacer(modifier = Modifier.height(18.dp))
+
+        Button(
+            onClick = onRetryClick,
+            colors = ButtonDefaults.buttonColors(containerColor = Primary700)
+        ) {
+            Text("Coba Lagi")
+        }
+    }
+}
+
+@Composable
+private fun CartEmptyContent(onExploreServicesClick: () -> Unit) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(24.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
+        Box(
+            modifier = Modifier
+                .size(84.dp)
+                .clip(CircleShape)
+                .background(Primary100),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = Icons.Filled.ShoppingCart,
+                contentDescription = null,
+                modifier = Modifier.size(42.dp),
+                tint = Primary700
+            )
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        Text(
+            text = "Keranjang Kamu Masih Kosong",
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold
+        )
+
+        Spacer(modifier = Modifier.height(6.dp))
+
+        Text(
+            text = "Temukan berbagai jasa mahasiswa terbaik untuk membantumu di kampus.",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = TextAlign.Center
+        )
+
+        Spacer(modifier = Modifier.height(20.dp))
+
+        Button(
+            onClick = onExploreServicesClick,
+            colors = ButtonDefaults.buttonColors(containerColor = Secondary500),
+            shape = RoundedCornerShape(12.dp)
+        ) {
+            Text("Jelajahi Katalog Jasa", fontWeight = FontWeight.Bold)
+            Spacer(modifier = Modifier.width(6.dp))
+            Icon(Icons.Filled.ArrowForward, contentDescription = null, modifier = Modifier.size(16.dp))
+        }
+    }
+}
 
 @Composable
 private fun CartListContent(
@@ -255,540 +369,174 @@ private fun CartListContent(
     onViewVouchersClick: () -> Unit
 ) {
     Column(
-        modifier = Modifier.fillMaxSize()
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
     ) {
+        LazyColumn(
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxWidth(),
+            contentPadding = PaddingValues(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            // Header Pilih Semua
+            item(key = "select_all_header") {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.clickable(onClick = onSelectAll)
+                    ) {
+                        Checkbox(
+                            checked = uiState.isAllSelected,
+                            onCheckedChange = { onSelectAll() }
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = "Pilih Semua (${uiState.totalItemCount})",
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
 
-        // ==========================================
-        // PILIH SEMUA
-        // ==========================================
+                    if (uiState.selectedCount > 0) {
+                        Text(
+                            text = "${uiState.selectedCount} dipilih",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = Primary700,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
+            }
 
+            // Daftar item keranjang
+            items(uiState.items, key = { it.id }) { item ->
+                CartItemCard(
+                    item = item,
+                    onSelectionChange = { onToggleSelection(item.id) },
+                    onEditClick = { onEditItemClick(item.id) },
+                    onDeleteClick = { onDeleteItemClick(item.id) },
+                    onIncreaseQuantity = { onIncreaseQuantity(item.id) },
+                    onDecreaseQuantity = { onDecreaseQuantity(item.id) }
+                )
+            }
+
+            // Banner promo singkat di bawah keranjang
+            item(key = "promo_banner_cart") {
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable(onClick = onViewVouchersClick),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = CardDefaults.cardColors(containerColor = Primary100.copy(alpha = 0.6f))
+                ) {
+                    Row(
+                        modifier = Modifier.padding(12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.LocalOffer,
+                            contentDescription = null,
+                            tint = Primary700,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "Gunakan Promo & Voucher",
+                                style = MaterialTheme.typography.bodySmall,
+                                fontWeight = FontWeight.Bold,
+                                color = Primary700
+                            )
+                            Text(
+                                text = "${uiState.availableVouchers.size} voucher aktif tersedia untukmu",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        Icon(
+                            imageVector = Icons.Filled.ChevronRight,
+                            contentDescription = null,
+                            tint = Primary700,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
+                }
+            }
+        }
+
+        // Bottom Bar Checkout
+        CartBottomBar(
+            selectedCount = uiState.selectedCount,
+            total = uiState.subtotal,
+            isCheckoutEnabled = uiState.isCheckoutEnabled,
+            onCheckoutClick = onCheckoutClick
+        )
+    }
+}
+
+@Composable
+private fun CartBottomBar(
+    selectedCount: Int,
+    total: Long,
+    isCheckoutEnabled: Boolean,
+    onCheckoutClick: () -> Unit
+) {
+    Surface(
+        color = MaterialTheme.colorScheme.surface,
+        shadowElevation = 8.dp
+    ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 8.dp),
-            verticalAlignment = Alignment.CenterVertically
+                .navigationBarsPadding()
+                .padding(horizontal = 16.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            Checkbox(
-                checked = uiState.isAllSelected,
-                onCheckedChange = { onSelectAll() }
-            )
-
-            Text(
-                text = "Pilih Semua",
-                style = MaterialTheme.typography.bodyMedium
-            )
-
-            Spacer(modifier = Modifier.weight(1f))
-
-            Text(
-                text = "${uiState.selectedCount} dari ${uiState.totalItemCount} jasa dipilih",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
-
-        // ==========================================
-        // DAFTAR ITEM DAN BANNER
-        // ==========================================
-
-        LazyColumn(
-            modifier = Modifier.weight(1f),
-            contentPadding = PaddingValues(
-                start = 16.dp,
-                end = 16.dp,
-                top = 4.dp,
-                bottom = 10.dp
-            ),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-
-            // Daftar jasa.
-            items(
-                items = uiState.items,
-                key = { it.id }
-            ) { item ->
-
-                CartItemCard(
-                    item = item,
-                    onSelectionChange = {
-                        onToggleSelection(item.id)
-                    },
-                    onEditClick = {
-                        onEditItemClick(item.id)
-                    },
-                    onDeleteClick = {
-                        onDeleteItemClick(item.id)
-                    },
-                    onIncreaseQuantity = {
-                        onIncreaseQuantity(item.id)
-                    },
-                    onDecreaseQuantity = {
-                        onDecreaseQuantity(item.id)
-                    }
-                )
-            }
-
-            // ======================================
-            // INFORMASI KEAMANAN DANA
-            // ======================================
-
-            item(key = "cart_safety_banner") {
-                CartSafetyBanner()
-            }
-
-            // ======================================
-            // DISKON DAN VOUCHER
-            // ======================================
-
-            item(key = "cart_voucher_banner") {
-                CartVoucherBanner(
-                    onClick = onViewVouchersClick
-                )
-            }
-        }
-
-        // ==========================================
-        // RINGKASAN CHECKOUT (TETAP DI BAWAH)
-        // ==========================================
-
-        CartSummaryCard(
-            selectedCount = uiState.selectedCount,
-            total = uiState.total,
-            isCheckoutEnabled = uiState.isCheckoutEnabled,
-            onCheckoutClick = onCheckoutClick,
-            modifier = Modifier
-                .padding(
-                    start = 16.dp,
-                    end = 16.dp,
-                    top = 4.dp,
-                    bottom = 8.dp
-                )
-                .offset(y = 12.dp)
-        )
-    }
-}
-
-// ==================================================
-// BANNER KEAMANAN DANA
-// ==================================================
-
-@Composable
-private fun CartSafetyBanner() {
-    Surface(
-        modifier = Modifier.fillMaxWidth(),
-        color = Primary100.copy(alpha = 0.75f),
-        shape = RoundedCornerShape(12.dp)
-    ) {
-        Row(
-            modifier = Modifier.padding(11.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Box(
-                modifier = Modifier
-                    .size(32.dp)
-                    .clip(CircleShape)
-                    .background(Color(0xFF42EFB5)),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    imageVector = Icons.Filled.Security,
-                    contentDescription = null,
-                    tint = Color(0xFF087653),
-                    modifier = Modifier.size(19.dp)
-                )
-            }
-
-            Spacer(modifier = Modifier.width(9.dp))
-
-            Text(
-                text = "Dana ditahan aman sampai tugas selesai dikonfirmasi olehmu. Tanpa biaya admin tambahan!",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                lineHeight = MaterialTheme.typography.bodySmall.lineHeight
-            )
-        }
-    }
-}
-
-// ==================================================
-// BANNER DISKON DAN VOUCHER
-// ==================================================
-
-@Composable
-private fun CartVoucherBanner(
-    onClick: () -> Unit
-) {
-    Surface(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick),
-        color = Color(0xFFFFE9E5),
-        shape = RoundedCornerShape(10.dp)
-    ) {
-        Row(
-            modifier = Modifier.padding(
-                horizontal = 12.dp,
-                vertical = 9.dp
-            ),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Icon(
-                imageVector = Icons.Filled.LocalOffer,
-                contentDescription = null,
-                tint = Secondary500,
-                modifier = Modifier.size(17.dp)
-            )
-
-            Spacer(modifier = Modifier.width(7.dp))
-
-            Text(
-                text = "Diskon & voucher dapat dipakai di checkout",
-                modifier = Modifier.weight(1f),
-                style = MaterialTheme.typography.labelMedium,
-                fontWeight = FontWeight.SemiBold,
-                color = Color(0xFF71351E)
-            )
-
-            Icon(
-                imageVector = Icons.Filled.ArrowForward,
-                contentDescription = "Lihat voucher",
-                tint = Color(0xFF71351E),
-                modifier = Modifier.size(17.dp)
-            )
-        }
-    }
-}
-
-/** FRAME 3 — Empty State. */
-@Composable
-private fun CartEmptyContent(onExploreServicesClick: () -> Unit) {
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(24.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
-    ) {
-        Box(
-            modifier = Modifier
-                .size(96.dp)
-                .clip(CircleShape)
-                .background(Primary100),
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(
-                imageVector = Icons.Filled.ShoppingCartCheckout,
-                contentDescription = null,
-                tint = Primary700,
-                modifier = Modifier.size(48.dp)
-            )
-        }
-        Spacer(modifier = Modifier.height(20.dp))
-        Text(
-            text = "Keranjang kamu masih kosong",
-            style = MaterialTheme.typography.titleLarge,
-            textAlign = TextAlign.Center
-        )
-        Spacer(modifier = Modifier.height(8.dp))
-        Text(
-            text = "Yuk, temukan jasa yang bisa membantu kebutuhanmu hari ini.",
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            textAlign = TextAlign.Center
-        )
-        Spacer(modifier = Modifier.height(20.dp))
-        Button(
-            onClick = onExploreServicesClick,
-            shape = RoundedCornerShape(50),
-            modifier = Modifier.height(48.dp)
-        ) {
-            Icon(Icons.Filled.Explore, contentDescription = null, modifier = Modifier.size(18.dp))
-            Spacer(modifier = Modifier.width(8.dp))
-            Text(text = "Jelajahi Jasa")
-        }
-    }
-}
-
-/** FRAME 5 — Error State. */
-@Composable
-private fun CartErrorContent(message: String, onRetryClick: () -> Unit) {
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(24.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
-    ) {
-        Box(
-            modifier = Modifier
-                .size(96.dp)
-                .clip(CircleShape)
-                .background(Danger.copy(alpha = 0.12f)),
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(
-                imageVector = Icons.Filled.WifiOff,
-                contentDescription = null,
-                tint = Danger,
-                modifier = Modifier.size(48.dp)
-            )
-        }
-        Spacer(modifier = Modifier.height(20.dp))
-        Text(
-            text = "Gagal Memuat Keranjang",
-            style = MaterialTheme.typography.titleLarge,
-            textAlign = TextAlign.Center
-        )
-        Spacer(modifier = Modifier.height(8.dp))
-        Text(
-            text = message,
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            textAlign = TextAlign.Center
-        )
-        Spacer(modifier = Modifier.height(20.dp))
-        Button(
-            onClick = onRetryClick,
-            shape = RoundedCornerShape(50),
-            modifier = Modifier.height(48.dp)
-        ) {
-            Icon(Icons.Filled.Refresh, contentDescription = null, modifier = Modifier.size(18.dp))
-            Spacer(modifier = Modifier.width(8.dp))
-            Text(text = "Coba Lagi")
-        }
-    }
-}
-
-/** FRAME 8 — Loading State: skeleton placeholder, tidak menampilkan dummy data seolah selesai dimuat. */
-@Composable
-private fun CartLoadingContent() {
-    val skeletonColor = MaterialTheme.colorScheme.surfaceVariant
-
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
-    ) {
-        repeat(2) {
             Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(16.dp))
-                    .background(MaterialTheme.colorScheme.surface)
-                    .padding(12.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
+                modifier = Modifier.weight(1f)
             ) {
-                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    SkeletonBox(width = 64.dp, height = 64.dp, color = skeletonColor, shape = RoundedCornerShape(12.dp))
-                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        SkeletonBox(width = 160.dp, height = 16.dp, color = skeletonColor)
-                        SkeletonBox(width = 100.dp, height = 12.dp, color = skeletonColor)
-                        SkeletonBox(width = 80.dp, height = 12.dp, color = skeletonColor)
-                    }
-                }
-                SkeletonBox(width = Dp.Unspecified, height = 40.dp, color = skeletonColor, fillWidth = true)
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    SkeletonBox(width = 70.dp, height = 20.dp, color = skeletonColor)
-                    SkeletonBox(width = 90.dp, height = 28.dp, color = skeletonColor, shape = RoundedCornerShape(50))
-                }
+                Text(
+                    text = "Total Harga ($selectedCount Jasa)",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Text(
+                    text = formatRupiah(total),
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = Primary700
+                )
             }
-        }
-        SkeletonBox(width = Dp.Unspecified, height = 120.dp, color = skeletonColor, fillWidth = true, shape = RoundedCornerShape(16.dp))
-    }
-}
 
-@Composable
-private fun SkeletonBox(
-    width: Dp,
-    height: Dp,
-    color: Color,
-    shape: RoundedCornerShape = RoundedCornerShape(8.dp),
-    fillWidth: Boolean = false
-) {
-    Box(
-        modifier = (if (fillWidth) Modifier.fillMaxWidth() else Modifier.width(width))
-            .height(height)
-            .clip(shape)
-            .background(color)
-    )
-}
-
-/** FRAME 6 — Dialog konfirmasi hapus item. */
-@Composable
-private fun CartDeleteDialog(
-    serviceName: String,
-    onConfirm: () -> Unit,
-    onDismiss: () -> Unit
-) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        icon = {
-            Box(
-                modifier = Modifier
-                    .size(56.dp)
-                    .clip(CircleShape)
-                    .background(Danger.copy(alpha = 0.12f)),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(Icons.Filled.DeleteOutline, contentDescription = null, tint = Danger)
-            }
-        },
-        title = { Text(text = "Hapus jasa ini?", textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth()) },
-        text = {
-            Text(
-                text = "$serviceName akan dihapus dari keranjang.",
-                textAlign = TextAlign.Center,
-                modifier = Modifier.fillMaxWidth()
-            )
-        },
-        confirmButton = {
             Button(
-                onClick = onConfirm,
-                colors = ButtonDefaults.buttonColors(containerColor = Danger)
+                onClick = onCheckoutClick,
+                enabled = isCheckoutEnabled,
+                modifier = Modifier
+                    .height(48.dp)
+                    .width(160.dp),
+                shape = RoundedCornerShape(12.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = Secondary500
+                )
             ) {
-                Text(text = "Ya, Hapus")
-            }
-        },
-        dismissButton = {
-            OutlinedButton(onClick = onDismiss) {
-                Text(text = "Batal")
+                Text(
+                    text = "Checkout",
+                    fontWeight = FontWeight.Bold
+                )
+                Spacer(modifier = Modifier.width(4.dp))
+                Icon(
+                    imageVector = Icons.Filled.ArrowForward,
+                    contentDescription = null,
+                    modifier = Modifier.size(16.dp)
+                )
             }
         }
-    )
-}
-
-// ============================= PREVIEWS =============================
-// Kedelapan Preview memakai satu CartScreenContent yang sama, hanya beda UiState.
-
-@Preview(showBackground = true, name = "1. Cart Default")
-@Composable
-private fun CartDefaultPreview() {
-    GenkSuruhTheme {
-        CartScreenContent(
-            uiState = CartUiState(isLoading = false, items = CartDummyData.defaultItems()),
-            onToggleSelection = {}, onSelectAll = {}, onIncreaseQuantity = {}, onDecreaseQuantity = {},
-            onDeleteItemClick = {}, onConfirmDelete = {}, onDismissDeleteDialog = {}, onUndoRemove = {},
-            onDismissUndoSnackbar = {}, onRetryClick = {}, onEditItemClick = {}, onCheckoutClick = {},
-            onExploreServicesClick = {}
-        )
-    }
-}
-
-@Preview(showBackground = true, name = "2. Partial Selection")
-@Composable
-private fun CartPartialSelectionPreview() {
-    GenkSuruhTheme {
-        CartScreenContent(
-            uiState = CartUiState(isLoading = false, items = CartDummyData.partialSelectionItems()),
-            onToggleSelection = {}, onSelectAll = {}, onIncreaseQuantity = {}, onDecreaseQuantity = {},
-            onDeleteItemClick = {}, onConfirmDelete = {}, onDismissDeleteDialog = {}, onUndoRemove = {},
-            onDismissUndoSnackbar = {}, onRetryClick = {}, onEditItemClick = {}, onCheckoutClick = {},
-            onExploreServicesClick = {}
-        )
-    }
-}
-
-@Preview(showBackground = true, name = "3. Empty State")
-@Composable
-private fun CartEmptyPreview() {
-    GenkSuruhTheme {
-        CartScreenContent(
-            uiState = CartUiState(isLoading = false, items = emptyList()),
-            onToggleSelection = {}, onSelectAll = {}, onIncreaseQuantity = {}, onDecreaseQuantity = {},
-            onDeleteItemClick = {}, onConfirmDelete = {}, onDismissDeleteDialog = {}, onUndoRemove = {},
-            onDismissUndoSnackbar = {}, onRetryClick = {}, onEditItemClick = {}, onCheckoutClick = {},
-            onExploreServicesClick = {}
-        )
-    }
-}
-
-@Preview(showBackground = true, name = "4. No Selection")
-@Composable
-private fun CartNoSelectionPreview() {
-    GenkSuruhTheme {
-        CartScreenContent(
-            uiState = CartUiState(isLoading = false, items = CartDummyData.noSelectionItems()),
-            onToggleSelection = {}, onSelectAll = {}, onIncreaseQuantity = {}, onDecreaseQuantity = {},
-            onDeleteItemClick = {}, onConfirmDelete = {}, onDismissDeleteDialog = {}, onUndoRemove = {},
-            onDismissUndoSnackbar = {}, onRetryClick = {}, onEditItemClick = {}, onCheckoutClick = {},
-            onExploreServicesClick = {}
-        )
-    }
-}
-
-@Preview(showBackground = true, name = "5. Error State")
-@Composable
-private fun CartErrorPreview() {
-    GenkSuruhTheme {
-        CartScreenContent(
-            uiState = CartUiState(
-                isLoading = false,
-                isError = true,
-                errorMessage = CartDummyData.GENERIC_ERROR_MESSAGE
-            ),
-            onToggleSelection = {}, onSelectAll = {}, onIncreaseQuantity = {}, onDecreaseQuantity = {},
-            onDeleteItemClick = {}, onConfirmDelete = {}, onDismissDeleteDialog = {}, onUndoRemove = {},
-            onDismissUndoSnackbar = {}, onRetryClick = {}, onEditItemClick = {}, onCheckoutClick = {},
-            onExploreServicesClick = {}
-        )
-    }
-}
-
-@Preview(showBackground = true, name = "6. Delete Dialog")
-@Composable
-private fun CartDeleteDialogPreview() {
-    GenkSuruhTheme {
-        val items = CartDummyData.defaultItems()
-        CartScreenContent(
-            uiState = CartUiState(
-                isLoading = false,
-                items = items,
-                itemPendingDelete = items.first(),
-                showDeleteDialog = true
-            ),
-            onToggleSelection = {}, onSelectAll = {}, onIncreaseQuantity = {}, onDecreaseQuantity = {},
-            onDeleteItemClick = {}, onConfirmDelete = {}, onDismissDeleteDialog = {}, onUndoRemove = {},
-            onDismissUndoSnackbar = {}, onRetryClick = {}, onEditItemClick = {}, onCheckoutClick = {},
-            onExploreServicesClick = {}
-        )
-    }
-}
-
-@Preview(showBackground = true, name = "7. Item Removed (Undo)")
-@Composable
-private fun CartItemRemovedPreview() {
-    GenkSuruhTheme {
-        val items = CartDummyData.defaultItems()
-        CartScreenContent(
-            uiState = CartUiState(
-                isLoading = false,
-                items = items.drop(1),
-                lastRemovedItem = items.first(),
-                lastRemovedItemIndex = 0,
-                showUndoSnackbar = true
-            ),
-            onToggleSelection = {}, onSelectAll = {}, onIncreaseQuantity = {}, onDecreaseQuantity = {},
-            onDeleteItemClick = {}, onConfirmDelete = {}, onDismissDeleteDialog = {}, onUndoRemove = {},
-            onDismissUndoSnackbar = {}, onRetryClick = {}, onEditItemClick = {}, onCheckoutClick = {},
-            onExploreServicesClick = {}
-        )
-    }
-}
-
-@Preview(showBackground = true, name = "8. Loading State")
-@Composable
-private fun CartLoadingPreview() {
-    GenkSuruhTheme {
-        CartScreenContent(
-            uiState = CartUiState(isLoading = true),
-            onToggleSelection = {}, onSelectAll = {}, onIncreaseQuantity = {}, onDecreaseQuantity = {},
-            onDeleteItemClick = {}, onConfirmDelete = {}, onDismissDeleteDialog = {}, onUndoRemove = {},
-            onDismissUndoSnackbar = {}, onRetryClick = {}, onEditItemClick = {}, onCheckoutClick = {},
-            onExploreServicesClick = {}
-        )
     }
 }

@@ -5,13 +5,80 @@ import com.example.genksuruh.core.model.Service
 import com.example.genksuruh.core.network.StorageUploader
 import com.example.genksuruh.core.network.SupabaseClient
 import io.github.jan.supabase.postgrest.postgrest
-import io.github.jan.supabase.postgrest.query.filter.*
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
+import kotlinx.serialization.SerialName
+import kotlinx.serialization.Serializable
 import java.io.IOException
 import java.util.UUID
+
+@Serializable
+private data class ProfileName(
+    val id: String,
+    val name: String = "Penyedia Jasa"
+)
+
+@Serializable
+private data class ServiceRow(
+    val id: String,
+    val title: String,
+    val category: String,
+    val price: Long,
+    val description: String,
+    val areas: List<String> = emptyList(),
+    val hours: String = "",
+    @SerialName("provider_id") val providerId: String = "",
+    @SerialName("provider_name") val providerName: String? = null,
+    @SerialName("provider_phone") val providerPhone: String = "085895089845",
+    val rating: Double = 0.0,
+    @SerialName("review_count") val reviewCount: Int = 0,
+    @SerialName("image_url") val imageUrl: String? = null
+) {
+    fun toService(fallbackProviderName: String): Service = Service(
+        id = id,
+        title = title,
+        category = category,
+        price = price,
+        description = description,
+        areas = areas,
+        hours = hours,
+        providerId = providerId,
+        providerName = providerName.takeUnless { it.isNullOrBlank() } ?: fallbackProviderName,
+        providerPhone = providerPhone,
+        rating = rating,
+        reviewCount = reviewCount,
+        imageUrl = imageUrl
+    )
+}
+
+@Serializable
+private data class ServiceInsert(
+    @SerialName("provider_id") val providerId: String,
+    @SerialName("provider_name") val providerName: String,
+    @SerialName("provider_phone") val providerPhone: String,
+    val title: String,
+    val category: String,
+    val price: Long,
+    val description: String,
+    val areas: List<String>,
+    val hours: String,
+    @SerialName("image_url") val imageUrl: String?
+)
+
+@Serializable
+private data class ServiceUpdate(
+    @SerialName("provider_name") val providerName: String,
+    @SerialName("provider_phone") val providerPhone: String,
+    val title: String,
+    val category: String,
+    val price: Long,
+    val description: String,
+    val areas: List<String>,
+    val hours: String,
+    @SerialName("image_url") val imageUrl: String?
+)
 
 // Kontrak Repository Katalog Jasa. ViewModel bergantung pada interface ini.
 interface CatalogRepository {
