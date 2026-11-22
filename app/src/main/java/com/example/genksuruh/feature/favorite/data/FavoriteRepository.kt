@@ -15,11 +15,13 @@ interface FavoriteRepository {
     fun restore(id: String, index: Int)
     fun reset()
 
-    companion object : FavoriteRepository by DummyFavoriteRepository
+    companion object : FavoriteRepository by defaultInstance {
+        val defaultInstance: FavoriteRepository by lazy { SupabaseFavoriteRepository() }
+    }
 }
 
 /**
- * Sumber data DUMMY (di memori). Nanti diganti Supabase (tabel "favorites").
+ * Sumber data DUMMY (di memori) untuk keperluan fallback dan testing.
  */
 object DummyFavoriteRepository : FavoriteRepository {
 
