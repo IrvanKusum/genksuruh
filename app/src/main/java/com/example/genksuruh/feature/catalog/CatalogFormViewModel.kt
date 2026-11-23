@@ -251,13 +251,8 @@ class CatalogFormViewModel @JvmOverloads constructor(
                         areas = s.areas.toList(),
                         hours = hours,
                         providerId = old?.providerId ?: owner?.id ?: CatalogRepository.CURRENT_USER_ID,
-<<<<<<< HEAD
-                        providerName = old?.providerName ?: owner?.name ?: CatalogRepository.CURRENT_USER_NAME,
-                        providerPhone = old?.providerPhone ?: "085895089845",
-=======
                         providerName = providerName.trim(),
                         providerPhone = providerPhone.trim().ifBlank { "085895089845" },
->>>>>>> 2d4d4fe2927f9de18b61bd703d5b68e57b8063b9
                         rating = old?.rating ?: 0.0,
                         reviewCount = old?.reviewCount ?: 0,
                         imageRes = photo.imageRes,

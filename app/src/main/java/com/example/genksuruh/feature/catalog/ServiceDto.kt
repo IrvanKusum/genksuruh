@@ -52,7 +52,7 @@ data class ServiceUpdate(
 )
 
 @Serializable
-data class ProfileName(val id: String, val name: String)
+data class ProfileName(val id: String, val name: String = "Penyedia Jasa")
 
 fun ServiceRow.toService(defaultProviderName: String) = Service(
     id = id,
