@@ -21,6 +21,7 @@ import com.example.genksuruh.core.model.Service
 import com.example.genksuruh.feature.promo.DiscountType
 import com.example.genksuruh.feature.promo.PromoModule
 import com.example.genksuruh.feature.promo.effectiveStatus
+import com.example.genksuruh.feature.tracking.FakeTrackingRepository
 import com.example.genksuruh.feature.promo.VoucherStatus as ClaimStatus
 import com.example.genksuruh.feature.tracking.SupabaseTrackingRepository
 
@@ -655,6 +656,7 @@ class CartViewModel(
                     ?.let { PromoModule.repository.markClaimUsed(it) }
 
                 SupabaseTrackingRepository.addOrdersFromCart(latest.selectedItems)
+                    FakeTrackingRepository.addOrdersFromCart(latest.selectedItems)
 
                 val payable = latest.checkoutTotal
 

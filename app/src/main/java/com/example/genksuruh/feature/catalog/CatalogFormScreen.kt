@@ -52,6 +52,9 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.genksuruh.core.theme.GenkSuruhTheme
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 private val TextMuted = Color(0xFF64748B)
 private val FieldGray = Color(0xFFF1F5F9)
@@ -68,11 +71,25 @@ fun CatalogFormScreen(
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
 
     val launcher = rememberLauncherForActivityResult(
         ActivityResultContracts.PickVisualMedia()
     ) { uri ->
-        if (uri != null) viewModel.onPhotoPicked(uri, context.fileSize(uri))
+        if (uri != null) {
+            scope.launch {
+                val picked = withContext(Dispatchers.IO) {
+                    runCatching {
+                        val bytes = context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
+                        val mime = context.contentResolver.getType(uri) ?: "image/jpeg"
+                        bytes?.let { it to mime }
+                    }.getOrNull()
+                }
+                if (picked != null) {
+                    viewModel.onPhotoPicked(picked.first, picked.second, context.fileSize(uri))
+                }
+            }
+        }
     }
 
     LaunchedEffect(state.saved) { if (state.saved) onClose() }
@@ -82,10 +99,16 @@ fun CatalogFormScreen(
         title = viewModel.title,
         priceText = viewModel.priceText,
         description = viewModel.description,
+        providerName = viewModel.providerName,
+        providerPhone = viewModel.providerPhone,
+        providerNameError = viewModel.providerNameError,
+        providerPhoneError = viewModel.providerPhoneError,
         onTitleChange = viewModel::onTitleChange,
         onCategoryChange = viewModel::onCategoryChange,
         onPriceChange = viewModel::onPriceChange,
         onDescriptionChange = viewModel::onDescriptionChange,
+        onProviderNameChange = viewModel::onProviderNameChange,
+        onProviderPhoneChange = viewModel::onProviderPhoneChange,
         onToggleArea = viewModel::toggleArea,
         onStartTimeChange = viewModel::onStartTimeChange,
         onEndTimeChange = viewModel::onEndTimeChange,
@@ -109,10 +132,16 @@ fun CatalogFormContent(
     title: String,
     priceText: String,
     description: String,
+    providerName: String,
+    providerPhone: String,
+    providerNameError: String?,
+    providerPhoneError: String?,
     onTitleChange: (String) -> Unit,
     onCategoryChange: (String) -> Unit,
     onPriceChange: (String) -> Unit,
     onDescriptionChange: (String) -> Unit,
+    onProviderNameChange: (String) -> Unit,
+    onProviderPhoneChange: (String) -> Unit,
     onToggleArea: (String) -> Unit,
     onStartTimeChange: (String) -> Unit,
     onEndTimeChange: (String) -> Unit,
@@ -227,6 +256,23 @@ fun CatalogFormContent(
                 CategoryField(
                     value = state.category, error = state.categoryError,
                     onSelected = onCategoryChange
+                )
+
+                // ---- Nama Penyedia / Mitra ----
+                LabeledTextField(
+                    label = "Nama Penyedia / Mitra", required = true,
+                    value = providerName, onValueChange = onProviderNameChange,
+                    placeholder = "contoh: Dimas Pratama",
+                    error = providerNameError
+                )
+
+                // ---- Nomor Telepon / WhatsApp Penyedia ----
+                LabeledTextField(
+                    label = "Nomor Telepon / WhatsApp (untuk Hubungi)", required = true,
+                    value = providerPhone, onValueChange = onProviderPhoneChange,
+                    placeholder = "085895089845",
+                    keyboardType = KeyboardType.Phone,
+                    error = providerPhoneError
                 )
 
                 // ---- Harga ----
@@ -344,8 +390,12 @@ private fun CatalogFormPreview() {
             title = "",
             priceText = "",
             description = "",
+            providerName = "",
+            providerPhone = "",
+            providerNameError = null,
+            providerPhoneError = null,
             onTitleChange = {}, onCategoryChange = {}, onPriceChange = {},
-            onDescriptionChange = {}, onToggleArea = {},
+            onDescriptionChange = {}, onProviderNameChange = {}, onProviderPhoneChange = {}, onToggleArea = {},
             onStartTimeChange = {}, onEndTimeChange = {},
             onPickFromGallery = {}, onRemovePhoto = {}, onSave = {},
             onDismissError = {}, onClose = {}

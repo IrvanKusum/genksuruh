@@ -72,6 +72,7 @@ private val TextMuted = Color(0xFF64748B)
 @Composable
 fun CatalogScreen(
     onServiceClick: (String) -> Unit = {},
+    onAddToCart: (com.example.genksuruh.core.model.Service) -> Unit = {},
     onAddClick: () -> Unit = {},
     showAddButton: Boolean = true,
     onProfileClick: () -> Unit = {},
@@ -144,12 +145,7 @@ fun CatalogScreen(
                             onFavoriteClick = { viewModel.toggleFavorite(service.id) },
                             onCartClick = if (showAddButton) null else {
                                 {
-                                    val added = CartRepository.shared.addService(service)
-                                    Toast.makeText(
-                                        context,
-                                        if (added) "Ditambahkan ke keranjang" else "Sudah ada di keranjang",
-                                        Toast.LENGTH_SHORT
-                                    ).show()
+                                    onAddToCart(service)
                                 }
                             }
                         )

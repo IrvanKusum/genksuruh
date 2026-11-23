@@ -78,6 +78,7 @@ private val ChipGray = Color(0xFFF1F5F9)
 @Composable
 fun CatalogDetailScreen(
     onBuyNow: (Service) -> Unit = {},
+    onAddToCart: (Service) -> Unit = {},
     onBack: () -> Unit = {},
     onGoToCart: () -> Unit = {},
     isAdmin: Boolean = false,
@@ -86,7 +87,6 @@ fun CatalogDetailScreen(
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
-    val scope = rememberCoroutineScope()
 
     when (val s = state) {
         is CatalogDetailUiState.Loading -> Box(
@@ -114,8 +114,7 @@ fun CatalogDetailScreen(
                 if (s.inCart) {
                     onGoToCart()
                 } else {
-                    viewModel.addToCart()
-                    scope.launch { snackbarHostState.showSnackbar("Ditambahkan ke keranjang") }
+                    onAddToCart(s.service)
                 }
             },
             isAdmin = isAdmin,
@@ -431,7 +430,7 @@ private fun ProviderCard(service: Service) {
             }
             val context = LocalContext.current
             OutlinedButton(
-                onClick = { openWhatsApp(context, "085895089845", "Halo ${service.providerName}, saya ingin bertanya tentang jasa \"${service.title}\" di GenkSuruh.") },
+                onClick = { openWhatsApp(context, service.providerPhone, "Halo ${service.providerName}, saya ingin bertanya tentang jasa \"${service.title}\" di GenkSuruh.") },
                 contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)
             ) {
                 Text("Hubungi", style = MaterialTheme.typography.labelLarge)

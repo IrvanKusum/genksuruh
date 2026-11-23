@@ -4,7 +4,9 @@ import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
 object AppClock {
-    const val TODAY = "2026-11-01"
+    val TODAY: String
+        get() = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US)
+            .format(java.util.Date())
 }
 
 enum class DiscountType { PERSEN, NOMINAL }
@@ -43,7 +45,9 @@ data class Promo(
     val quota: Int,
     val claimed: Int = 0,
     val description: String = "",
-    val terms: List<String> = emptyList()
+    val terms: List<String> = emptyList(),
+    @SerialName("banner_url")
+    val bannerUrl: String? = null
 ) {
     val isFull: Boolean get() = claimed >= quota
     val remaining: Int get() = (quota - claimed).coerceAtLeast(0)
@@ -89,12 +93,13 @@ val serviceOptions = listOf(
     ServiceOption("Temani Nonton Konser", "Temani Acara", "🎤"),
     ServiceOption("Ganti Gas Elpiji 3 Kg", "Bantu Rumah Tangga", "🔥"),
     ServiceOption("Fotokopi dan Jilid Skripsi", "Print dan Fotokopi", "🖨️"),
-    ServiceOption("Antar Jemput Galon Air", "Bantu Rumah Tangga", "💧")
+    ServiceOption("Antar Jemput Galon Air", "Bantu Rumah Tangga", "💧"),
+    ServiceOption("Lainnya", "Lainnya", "🎟️")
 )
 
 val promoCategories = listOf(
     "Semua", "Antar Makanan", "Beli Jajan", "Temani Acara",
-    "Bantu Rumah Tangga", "Print dan Fotokopi"
+    "Bantu Rumah Tangga", "Print dan Fotokopi", "Lainnya"
 )
 
 val defaultTerms = listOf(

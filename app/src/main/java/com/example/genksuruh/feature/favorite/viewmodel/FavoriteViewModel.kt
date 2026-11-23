@@ -3,14 +3,14 @@ package com.example.genksuruh.feature.favorite.viewmodel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.genksuruh.core.model.Service
-import com.example.genksuruh.feature.catalog.CatalogRepository
+import com.example.genksuruh.feature.favorite.data.FavoriteRepository
+import com.example.genksuruh.feature.favorite.data.SupabaseFavoriteRepository
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -20,25 +20,27 @@ sealed interface FavoriteEvent {
     data class Added(val item: Service) : FavoriteEvent
 }
 
-/** Favorit dibaca dari CatalogRepository (flag isFavorite), satu sumber dengan Beranda. */
-class FavoriteViewModel : ViewModel() {
+/**
+ * Favorit terintegrasi dengan Supabase (tabel favorites & services).
+ */
+class FavoriteViewModel(
+    private val repo: FavoriteRepository = FavoriteRepository
+) : ViewModel() {
 
     companion object {
         const val ALL = "Semua"
     }
 
-    private val catalog = CatalogRepository
-
-    init {
-        // Jaga-jaga kalau tab Favorit dibuka sebelum Beranda memuat data.
-        viewModelScope.launch {
-            if (catalog.services.value.isEmpty()) runCatching { catalog.loadServices() }
+    private val _favorites = MutableStateFlow<List<Service>>(emptyList())
+    val favorites: StateFlow<List<Service>> =
+        if (repo is SupabaseFavoriteRepository) {
+            repo.favoritesFlow
+        } else {
+            _favorites.asStateFlow()
         }
-    }
 
-    val favorites: StateFlow<List<Service>> = catalog.services
-        .map { list -> list.filter { it.isFavorite } }
-        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+    private val _catalog = MutableStateFlow<List<Service>>(emptyList())
+    val catalog: StateFlow<List<Service>> = _catalog.asStateFlow()
 
     private val _selectedCategory = MutableStateFlow(ALL)
     val selectedCategory: StateFlow<String> = _selectedCategory.asStateFlow()
@@ -47,7 +49,7 @@ class FavoriteViewModel : ViewModel() {
     val query: StateFlow<String> = _query.asStateFlow()
 
     val categories: List<String>
-        get() = listOf(ALL) + catalog.services.value.map { it.category }.distinct()
+        get() = listOf(ALL) + (repo.getAllCategories() + favorites.value.map { it.category }).distinct()
 
     val visibleFavorites: StateFlow<List<Service>> =
         combine(favorites, _selectedCategory, _query) { list, category, query ->
@@ -64,7 +66,7 @@ class FavoriteViewModel : ViewModel() {
     fun selectCatalogCategory(cat: String) { _selectedCatalogCategory.value = cat }
 
     val visibleCatalogServices: StateFlow<List<Service>> =
-        combine(catalog.services, _selectedCatalogCategory, _catalogQuery) { list, category, query ->
+        combine(_catalog, _selectedCatalogCategory, _catalogQuery) { list, category, query ->
             applyFilter(list, category, query)
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
@@ -73,17 +75,27 @@ class FavoriteViewModel : ViewModel() {
 
     private var lastRemoved: Service? = null
 
+    init {
+        refresh()
+    }
+
+    fun refresh() {
+        _favorites.value = repo.getFavorites()
+        _catalog.value = repo.getAllCatalog()
+    }
+
     fun selectCategory(category: String) { _selectedCategory.value = category }
     fun setQuery(query: String) { _query.value = query }
 
-    fun getById(id: String): Service? = catalog.getById(id)
+    fun getById(id: String): Service? = repo.getById(id)
 
-    fun isFavorite(id: String): Boolean = catalog.getById(id)?.isFavorite == true
+    fun isFavorite(id: String): Boolean = repo.isFavorite(id)
 
     fun add(item: Service) {
         if (isFavorite(item.id)) return
-        viewModelScope.launch {
-            catalog.toggleFavorite(item.id)
+        val success = repo.add(item.id)
+        if (success) {
+            refresh()
             _events.trySend(FavoriteEvent.Added(item))
         }
     }
@@ -95,24 +107,21 @@ class FavoriteViewModel : ViewModel() {
     fun remove(item: Service) {
         if (!isFavorite(item.id)) return
         lastRemoved = item
-        viewModelScope.launch {
-            catalog.toggleFavorite(item.id)
-            _events.trySend(FavoriteEvent.Removed(item))
-        }
+        repo.remove(item.id)
+        refresh()
+        _events.trySend(FavoriteEvent.Removed(item))
     }
 
     fun undoRemove() {
         val item = lastRemoved ?: return
         lastRemoved = null
-        viewModelScope.launch {
-            if (!isFavorite(item.id)) catalog.toggleFavorite(item.id)
-        }
+        repo.add(item.id)
+        refresh()
     }
 
     fun resetDemo() {
-        viewModelScope.launch {
-            favorites.value.forEach { catalog.toggleFavorite(it.id) }
-        }
+        repo.reset()
+        refresh()
     }
 
     private fun applyFilter(

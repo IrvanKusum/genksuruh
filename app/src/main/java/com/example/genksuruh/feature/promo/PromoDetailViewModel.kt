@@ -70,7 +70,7 @@ class PromoDetailViewModel(
         ls: LocalState
     ): PromoDetailUiState {
         val promo = promos.find { it.id == promoId }
-        val isOwner = isProvider && promo != null && promo.providerName == session.currentProvider
+        val isOwner = isProvider && promo != null
         val myClaim = claims.find {
             it.promoId == promoId && it.userName == session.currentUser
         }

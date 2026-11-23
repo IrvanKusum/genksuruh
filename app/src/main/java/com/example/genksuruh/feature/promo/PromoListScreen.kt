@@ -24,11 +24,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale // BARU
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import coil.compose.AsyncImage // BARU
 import kotlinx.coroutines.delay
 
 data class PromoListActions(
@@ -407,6 +409,7 @@ private fun BannerPager(banners: List<Promo>, onClick: (String) -> Unit) {
             pageSpacing = 12.dp
         ) { page ->
             val promo = banners[page]
+            // BARU: foto banner memenuhi kartu, padding dipindah ke Box dalam
             Box(
                 Modifier
                     .fillMaxWidth()
@@ -414,42 +417,62 @@ private fun BannerPager(banners: List<Promo>, onClick: (String) -> Unit) {
                     .clip(RoundedCornerShape(16.dp))
                     .background(Brush.linearGradient(gradients[page % gradients.size]))
                     .clickable { onClick(promo.id) }
-                    .padding(16.dp)
             ) {
-                Text(
-                    text = "PROMO",
-                    fontSize = 10.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = PromoColors.TextDark,
-                    modifier = Modifier
-                        .align(Alignment.TopStart)
-                        .background(PromoColors.Sand, RoundedCornerShape(50))
-                        .padding(horizontal = 8.dp, vertical = 2.dp)
-                )
-                Column(
-                    Modifier
-                        .align(Alignment.BottomStart)
-                        .fillMaxWidth(0.7f)
-                ) {
-                    Text(
-                        text = promo.title,
-                        color = Color.White,
-                        fontSize = 17.sp,
-                        fontWeight = FontWeight.Bold,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis
+                if (promo.bannerUrl != null) {
+                    AsyncImage(
+                        model = promo.bannerUrl,
+                        contentDescription = null,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.matchParentSize()
                     )
-                    Text(
-                        text = "Kode: ${promo.code}",
-                        color = Color.White.copy(alpha = 0.9f),
-                        fontSize = 12.sp
+                    Box(
+                        Modifier
+                            .matchParentSize()
+                            .background(Color.Black.copy(alpha = 0.35f))
                     )
                 }
-                Text(
-                    text = promo.emoji,
-                    fontSize = 56.sp,
-                    modifier = Modifier.align(Alignment.CenterEnd)
-                )
+                Box(
+                    Modifier
+                        .fillMaxSize()
+                        .padding(16.dp)
+                ) {
+                    Text(
+                        text = "PROMO",
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = PromoColors.TextDark,
+                        modifier = Modifier
+                            .align(Alignment.TopStart)
+                            .background(PromoColors.Sand, RoundedCornerShape(50))
+                            .padding(horizontal = 8.dp, vertical = 2.dp)
+                    )
+                    Column(
+                        Modifier
+                            .align(Alignment.BottomStart)
+                            .fillMaxWidth(0.7f)
+                    ) {
+                        Text(
+                            text = promo.title,
+                            color = Color.White,
+                            fontSize = 17.sp,
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        Text(
+                            text = "Kode: ${promo.code}",
+                            color = Color.White.copy(alpha = 0.9f),
+                            fontSize = 12.sp
+                        )
+                    }
+                    if (promo.bannerUrl == null) {
+                        Text(
+                            text = promo.emoji,
+                            fontSize = 56.sp,
+                            modifier = Modifier.align(Alignment.CenterEnd)
+                        )
+                    }
+                }
             }
         }
         Spacer(Modifier.height(8.dp))

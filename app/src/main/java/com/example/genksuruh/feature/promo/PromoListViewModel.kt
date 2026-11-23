@@ -107,7 +107,7 @@ class PromoListViewModel(
             ls.voucherFilter == null || it.status == ls.voucherFilter
         }
 
-        val myPromos = promos.filter { it.providerName == providerName }
+        val myPromos = promos
         val myPromoIds = myPromos.map { it.id }.toSet()
         val providerClaims = claims
             .filter { it.promoId in myPromoIds }

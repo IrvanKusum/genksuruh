@@ -21,11 +21,16 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -34,10 +39,27 @@ fun EditProfileScreen(
     viewModel: EditProfileViewModel = viewModel()
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
 
     val launcher = rememberLauncherForActivityResult(
         ActivityResultContracts.PickVisualMedia()
-    ) { uri -> viewModel.onPhotoPicked(uri?.toString()) }
+    ) { uri ->
+        if (uri != null) {
+            scope.launch {
+                val picked = withContext(Dispatchers.IO) {
+                    runCatching {
+                        val bytes = context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
+                        val mime = context.contentResolver.getType(uri) ?: "image/jpeg"
+                        bytes?.let { it to mime }
+                    }.getOrNull()
+                }
+                if (picked != null) {
+                    viewModel.onPhotoPicked(uri.toString(), picked.first, picked.second)
+                }
+            }
+        }
+    }
 
     LaunchedEffect(state.saved) {
         if (state.saved) onClose()

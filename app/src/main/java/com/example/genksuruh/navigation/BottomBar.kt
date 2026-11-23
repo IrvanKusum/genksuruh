@@ -60,11 +60,20 @@ fun AppBottomBar(navController: NavHostController, role: AccountRole) {
                 onClick = {
                     if (!selected) {
                         navController.navigate(item.route) {
-                            popUpTo(navController.graph.findStartDestination().id) {
-                                saveState = true
+                            if (item.route == Routes.CATALOG_LIST || item.route == Routes.ADMIN_SERVICES) {
+                                popUpTo(item.route) {
+                                    inclusive = false
+                                    saveState = false
+                                }
+                                launchSingleTop = true
+                                restoreState = false
+                            } else {
+                                popUpTo(navController.graph.findStartDestination().id) {
+                                    saveState = true
+                                }
+                                launchSingleTop = true
+                                restoreState = true
                             }
-                            launchSingleTop = true
-                            restoreState = true
                         }
                     }
                 },

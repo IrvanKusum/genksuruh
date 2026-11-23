@@ -21,6 +21,7 @@ interface PromoRepository {
     suspend fun undoDelete(): Result<Unit>
     suspend fun claimPromo(promoId: String, userName: String): Result<Promo>
     suspend fun markClaimUsed(claimId: String): Result<Unit>
+    suspend fun uploadBanner(bytes: ByteArray, mimeType: String): Result<String>
 }
 
 /** Data dummy (disimpan di memori). */
@@ -109,6 +110,9 @@ class FakePromoRepository : PromoRepository {
         }
         return Result.success(Unit)
     }
+
+    override suspend fun uploadBanner(bytes: ByteArray, mimeType: String): Result<String> =
+        Result.failure(UnsupportedOperationException("Upload banner hanya untuk Supabase"))
 }
 
 private fun seedPromos() = listOf(
@@ -195,7 +199,7 @@ class SessionRepository {
 
 /** Tempat membuat ViewModel beserta dependency-nya. */
 object PromoModule {
-    val repository: PromoRepository by lazy { FakePromoRepository() }
+    val repository: PromoRepository by lazy { SupabasePromoRepository(session.currentUser) }
     val session: SessionRepository by lazy { SessionRepository() }
 
     val listFactory: ViewModelProvider.Factory = viewModelFactory {

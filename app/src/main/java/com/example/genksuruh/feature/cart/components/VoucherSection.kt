@@ -1,7 +1,7 @@
-
 package com.example.genksuruh.feature.cart.components
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.IntrinsicSize
@@ -14,6 +14,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
@@ -35,6 +37,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -44,6 +47,7 @@ import com.example.genksuruh.core.theme.Primary700
 import com.example.genksuruh.core.theme.Success
 import com.example.genksuruh.feature.cart.VoucherStatus
 import com.example.genksuruh.feature.cart.formatRupiah
+import com.example.genksuruh.feature.promo.Promo
 
 /**
  * Input, loading, error, dan hasil penerapan voucher pada Checkout.
@@ -57,6 +61,7 @@ fun VoucherSection(
     minimumTransaction: Long,
     discountAmount: Long,
     subtotal: Long,
+    availableVouchers: List<Promo> = emptyList(),
     onCodeChange: (String) -> Unit,
     onApplyClick: () -> Unit,
     onRemoveClick: () -> Unit,
@@ -107,6 +112,51 @@ fun VoucherSection(
                 modifier = Modifier.padding(12.dp),
                 verticalArrangement = Arrangement.spacedBy(9.dp)
             ) {
+                // Chip list voucher aktif milik user
+                if (availableVouchers.isNotEmpty() && status != VoucherStatus.APPLIED) {
+                    Text(
+                        text = "Voucher Kamu Yang Aktif:",
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = Primary700
+                    )
+                    LazyRow(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        items(availableVouchers, key = { it.id }) { promo ->
+                            val isSelected = code.equals(promo.code, ignoreCase = true)
+                            Surface(
+                                shape = RoundedCornerShape(20.dp),
+                                color = if (isSelected) Primary700 else Primary100,
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(20.dp))
+                                    .clickable {
+                                        onCodeChange(promo.code)
+                                        onApplyClick()
+                                    }
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        text = "${promo.emoji} ${promo.code}",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        fontWeight = FontWeight.Bold,
+                                        color = if (isSelected) MaterialTheme.colorScheme.onPrimary else Primary700
+                                    )
+                                    Spacer(Modifier.width(4.dp))
+                                    Text(
+                                        text = "• ${promo.badge}",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = if (isSelected) MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.85f) else MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+
                 when (status) {
                     VoucherStatus.APPLIED -> AppliedVoucherContent(
                         code = code,

@@ -27,6 +27,7 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.layout.ContentScale // BARU
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -34,6 +35,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import coil.compose.AsyncImage // BARU
 
 fun Modifier.dashedBorder(
     color: Color,
@@ -258,16 +260,27 @@ fun PromoCard(promo: Promo, onClick: () -> Unit, trailing: @Composable () -> Uni
             Modifier.padding(12.dp),
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
+            // BARU: thumbnail menampilkan foto banner, kalau tidak ada tampil emoji
             Box(
                 Modifier
                     .size(72.dp)
-                    .background(PromoColors.SoftBlue, RoundedCornerShape(12.dp))
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(PromoColors.SoftBlue)
             ) {
-                Text(
-                    text = promo.emoji,
-                    fontSize = 32.sp,
-                    modifier = Modifier.align(Alignment.Center)
-                )
+                if (promo.bannerUrl != null) {
+                    AsyncImage(
+                        model = promo.bannerUrl,
+                        contentDescription = null,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize()
+                    )
+                } else {
+                    Text(
+                        text = promo.emoji,
+                        fontSize = 32.sp,
+                        modifier = Modifier.align(Alignment.Center)
+                    )
+                }
                 Text(
                     text = promo.badge,
                     fontSize = 9.sp,

@@ -20,12 +20,19 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip // BARU
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale // BARU
+import androidx.compose.ui.platform.LocalContext // BARU
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import coil.compose.AsyncImage // BARU
+import kotlinx.coroutines.Dispatchers // BARU
+import kotlinx.coroutines.launch // BARU
+import kotlinx.coroutines.withContext // BARU
 
 data class PromoFormActions(
     val onTitleChange: (String) -> Unit,
@@ -37,7 +44,7 @@ data class PromoFormActions(
     val onMinOrderChange: (String) -> Unit,
     val onQuotaChange: (String) -> Unit,
     val onDescriptionChange: (String) -> Unit,
-    val onBannerPicked: () -> Unit,
+    val onBannerPicked: (String, ByteArray, String) -> Unit, // BARU
     val onStartDateClick: () -> Unit,
     val onEndDateClick: () -> Unit,
     val onDatePicked: (Long?) -> Unit,
@@ -99,10 +106,26 @@ fun PromoFormContent(
     actions: PromoFormActions,
     onBack: () -> Unit
 ) {
+    // BARU: baca isi foto yang dipilih, lalu kirim ke ViewModel
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     val imagePicker = rememberLauncherForActivityResult(
         ActivityResultContracts.GetContent()
     ) { uri ->
-        if (uri != null) actions.onBannerPicked()
+        if (uri != null) {
+            scope.launch {
+                val picked = withContext(Dispatchers.IO) {
+                    runCatching {
+                        val bytes = context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
+                        val mime = context.contentResolver.getType(uri) ?: "image/jpeg"
+                        bytes?.let { it to mime }
+                    }.getOrNull()
+                }
+                if (picked != null) {
+                    actions.onBannerPicked(uri.toString(), picked.first, picked.second)
+                }
+            }
+        }
     }
 
     Scaffold(
@@ -230,6 +253,7 @@ private fun FormBody(
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(6.dp)
     ) {
+        // BARU: kotak banner menampilkan foto yang dipilih
         Box(
             Modifier
                 .fillMaxWidth()
@@ -239,25 +263,45 @@ private fun FormBody(
                 .clickable(onClick = onPickBanner),
             contentAlignment = Alignment.Center
         ) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Icon(
-                    imageVector = Icons.Default.Image,
-                    contentDescription = null,
-                    tint = PromoColors.Primary,
-                    modifier = Modifier.size(36.dp)
+            if (state.bannerPreview != null) {
+                AsyncImage(
+                    model = state.bannerPreview,
+                    contentDescription = "Banner promo",
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .clip(RoundedCornerShape(12.dp))
                 )
                 Text(
-                    text = if (state.bannerPicked) "Banner dipilih ✓ (ketuk untuk ganti)"
-                    else "Unggah Banner Promo",
-                    fontWeight = FontWeight.SemiBold,
-                    fontSize = 13.sp,
-                    color = PromoColors.Primary
-                )
-                Text(
-                    text = "JPG/PNG, maksimal 2 MB",
+                    text = "Ketuk untuk ganti",
+                    color = Color.White,
                     fontSize = 11.sp,
-                    color = PromoColors.TextMuted
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .padding(bottom = 8.dp)
+                        .background(Color.Black.copy(alpha = 0.5f), RoundedCornerShape(50))
+                        .padding(horizontal = 10.dp, vertical = 3.dp)
                 )
+            } else {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Icon(
+                        imageVector = Icons.Default.Image,
+                        contentDescription = null,
+                        tint = PromoColors.Primary,
+                        modifier = Modifier.size(36.dp)
+                    )
+                    Text(
+                        text = "Unggah Banner Promo",
+                        fontWeight = FontWeight.SemiBold,
+                        fontSize = 13.sp,
+                        color = PromoColors.Primary
+                    )
+                    Text(
+                        text = "JPG/PNG, maksimal 2 MB",
+                        fontSize = 11.sp,
+                        color = PromoColors.TextMuted
+                    )
+                }
             }
         }
         Spacer(Modifier.height(8.dp))
