@@ -225,6 +225,7 @@ class CatalogFormViewModel @JvmOverloads constructor(
                         hours = hours,
                         providerId = old?.providerId ?: owner?.id ?: CatalogRepository.CURRENT_USER_ID,
                         providerName = old?.providerName ?: owner?.name ?: CatalogRepository.CURRENT_USER_NAME,
+                        providerPhone = old?.providerPhone ?: "085895089845",
                         rating = old?.rating ?: 0.0,
                         reviewCount = old?.reviewCount ?: 0,
                         imageRes = photo.imageRes,

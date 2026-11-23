@@ -431,7 +431,7 @@ private fun ProviderCard(service: Service) {
             }
             val context = LocalContext.current
             OutlinedButton(
-                onClick = { openWhatsApp(context, "085895089845", "Halo ${service.providerName}, saya ingin bertanya tentang jasa \"${service.title}\" di GenkSuruh.") },
+                onClick = { openWhatsApp(context, service.providerPhone, "Halo ${service.providerName}, saya ingin bertanya tentang jasa \"${service.title}\" di GenkSuruh.") },
                 contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)
             ) {
                 Text("Hubungi", style = MaterialTheme.typography.labelLarge)
