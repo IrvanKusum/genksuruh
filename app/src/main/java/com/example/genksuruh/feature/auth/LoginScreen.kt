@@ -12,6 +12,8 @@ import androidx.compose.material.icons.rounded.Bolt
 import androidx.compose.material.icons.rounded.Email
 import androidx.compose.material.icons.rounded.ErrorOutline
 import androidx.compose.material.icons.rounded.Lock
+import androidx.compose.material.icons.rounded.Person
+import androidx.compose.material.icons.rounded.Phone
 import androidx.compose.material.icons.rounded.Visibility
 import androidx.compose.material.icons.rounded.VisibilityOff
 import androidx.compose.material3.*
@@ -32,7 +34,6 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.example.genksuruh.core.auth.AccountRole
 
 @Composable
 fun LoginScreen(viewModel: LoginViewModel = viewModel()) {
@@ -64,7 +65,7 @@ fun LoginScreen(viewModel: LoginViewModel = viewModel()) {
         Spacer(Modifier.height(16.dp))
         Text("GenkSuruh.co", style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.Bold)
         Text(
-            "Titip urusan kampusmu, beres tanpa ribet",
+            if (viewModel.isRegisterMode) "Buat akun baru untuk mulai memesan atau menawarkan jasa" else "Titip urusan kampusmu, beres tanpa ribet",
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
             textAlign = TextAlign.Center
@@ -90,6 +91,42 @@ fun LoginScreen(viewModel: LoginViewModel = viewModel()) {
                 )
             }
             Spacer(Modifier.height(16.dp))
+        }
+
+        if (viewModel.isRegisterMode) {
+            OutlinedTextField(
+                value = viewModel.name,
+                onValueChange = viewModel::onNameChange,
+                label = { Text("Nama Lengkap") },
+                leadingIcon = { Icon(Icons.Rounded.Person, null) },
+                singleLine = true,
+                isError = state.nameError != null,
+                supportingText = { state.nameError?.let { Text(it) } },
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
+                keyboardActions = KeyboardActions(onNext = { focusManager.moveFocus(FocusDirection.Down) }),
+                enabled = !state.isLoading,
+                shape = RoundedCornerShape(12.dp),
+                modifier = Modifier.fillMaxWidth()
+            )
+
+            Spacer(Modifier.height(8.dp))
+
+            OutlinedTextField(
+                value = viewModel.phone,
+                onValueChange = viewModel::onPhoneChange,
+                label = { Text("Nomor HP / WhatsApp") },
+                leadingIcon = { Icon(Icons.Rounded.Phone, null) },
+                singleLine = true,
+                isError = state.phoneError != null,
+                supportingText = { state.phoneError?.let { Text(it) } },
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone, imeAction = ImeAction.Next),
+                keyboardActions = KeyboardActions(onNext = { focusManager.moveFocus(FocusDirection.Down) }),
+                enabled = !state.isLoading,
+                shape = RoundedCornerShape(12.dp),
+                modifier = Modifier.fillMaxWidth()
+            )
+
+            Spacer(Modifier.height(8.dp))
         }
 
         OutlinedTextField(
@@ -129,7 +166,7 @@ fun LoginScreen(viewModel: LoginViewModel = viewModel()) {
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, imeAction = ImeAction.Done),
             keyboardActions = KeyboardActions(onDone = {
                 focusManager.clearFocus()
-                viewModel.login()
+                viewModel.authenticate()
             }),
             enabled = !state.isLoading,
             shape = RoundedCornerShape(12.dp),
@@ -141,7 +178,7 @@ fun LoginScreen(viewModel: LoginViewModel = viewModel()) {
         Button(
             onClick = {
                 focusManager.clearFocus()
-                viewModel.login()
+                viewModel.authenticate()
             },
             enabled = !state.isLoading,
             shape = RoundedCornerShape(12.dp),
@@ -158,40 +195,21 @@ fun LoginScreen(viewModel: LoginViewModel = viewModel()) {
                 Spacer(Modifier.width(10.dp))
                 Text("Memproses...")
             } else {
-                Text("Masuk", fontWeight = FontWeight.SemiBold)
+                Text(if (viewModel.isRegisterMode) "Daftar Akun" else "Masuk", fontWeight = FontWeight.SemiBold)
             }
         }
 
-        Spacer(Modifier.height(28.dp))
+        Spacer(Modifier.height(24.dp))
 
-        // Kotak bantuan demo: hapus saat rilis
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(12.dp))
-                .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.08f))
-                .padding(16.dp)
+        TextButton(
+            onClick = viewModel::toggleMode,
+            enabled = !state.isLoading
         ) {
-            Text("Akun demo", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
-            Spacer(Modifier.height(4.dp))
             Text(
-                "Ketuk untuk mengisi otomatis lalu tekan Masuk.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                if (viewModel.isRegisterMode) "Sudah punya akun? Masuk di sini" else "Belum punya akun? Daftar di sini",
+                color = MaterialTheme.colorScheme.primary,
+                fontWeight = FontWeight.Medium
             )
-            Spacer(Modifier.height(12.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedButton(
-                    onClick = { viewModel.fillDemo(AccountRole.ADMIN) },
-                    enabled = !state.isLoading,
-                    modifier = Modifier.weight(1f)
-                ) { Text("Admin") }
-                OutlinedButton(
-                    onClick = { viewModel.fillDemo(AccountRole.USER) },
-                    enabled = !state.isLoading,
-                    modifier = Modifier.weight(1f)
-                ) { Text("Pengguna") }
-            }
         }
     }
 }

@@ -29,15 +29,23 @@ interface CartRepository {
     fun increaseQuantity(itemId: String)
     fun decreaseQuantity(itemId: String)
     fun updateItem(updatedItem: CartItem): Boolean
+    fun addCartItemWithDetails(item: CartItem): Boolean
     fun removeItem(itemId: String): RemovedCartItem?
     fun restoreItem(item: CartItem, index: Int)
     fun addService(service: Service): Boolean
     fun isInCart(serviceId: String): Boolean
     fun selectOnly(itemId: String)
     fun removeSelected()
+    suspend fun checkout(
+        selectedItems: List<CartItem>,
+        voucherCode: String?,
+        discountAmount: Long,
+        totalPayable: Long,
+        directServiceItem: CartItem? = null
+    ): Result<Unit>
 
-    companion object : CartRepository by DummyCartRepository {
-        val shared: CartRepository = DummyCartRepository
+    companion object : CartRepository by SupabaseCartRepository {
+        val shared: CartRepository = SupabaseCartRepository
     }
 }
 
@@ -104,39 +112,15 @@ object DummyCartRepository : CartRepository {
         }
     }
 
-    override fun increaseQuantity(itemId: String) {
-        _cartItems.update { items ->
-            items.map { item ->
-                if (item.id == itemId) {
-                    item.copy(quantity = item.quantity + 1)
-                } else {
-                    item
-                }
-            }
-        }
-    }
+    override fun increaseQuantity(itemId: String) {}
 
-    override fun decreaseQuantity(itemId: String) {
-        _cartItems.update { items ->
-            items.map { item ->
-                if (item.id == itemId) {
-                    item.copy(
-                        quantity = (
-                                item.quantity - 1
-                                ).coerceAtLeast(MIN_CART_ITEM_QUANTITY)
-                    )
-                } else {
-                    item
-                }
-            }
-        }
-    }
+    override fun decreaseQuantity(itemId: String) {}
 
     override fun updateItem(updatedItem: CartItem): Boolean {
         val currentItems = _cartItems.value
 
         if (currentItems.none { it.id == updatedItem.id }) {
-            return false
+            return addCartItemWithDetails(updatedItem)
         }
 
         _cartItems.value = currentItems.map { current ->
@@ -149,6 +133,11 @@ object DummyCartRepository : CartRepository {
             }
         }
 
+        return true
+    }
+
+    override fun addCartItemWithDetails(item: CartItem): Boolean {
+        _cartItems.update { it + item.copy(quantity = 1, isSelected = true) }
         return true
     }
 
@@ -223,5 +212,16 @@ object DummyCartRepository : CartRepository {
 
     override fun removeSelected() {
         _cartItems.update { items -> items.filterNot { it.isSelected } }
+    }
+
+    override suspend fun checkout(
+        selectedItems: List<CartItem>,
+        voucherCode: String?,
+        discountAmount: Long,
+        totalPayable: Long,
+        directServiceItem: CartItem?
+    ): Result<Unit> {
+        removeSelected()
+        return Result.success(Unit)
     }
 }

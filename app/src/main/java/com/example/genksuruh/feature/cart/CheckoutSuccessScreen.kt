@@ -50,16 +50,20 @@ fun CheckoutSuccessScreen(
     modifier: Modifier = Modifier
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    val summary = uiState.lastCheckoutSummary
 
-    val items = uiState.selectedItems
-    val subtotal = uiState.subtotal
-    val discount = uiState.voucherDiscountAmount
-    val total = uiState.checkoutTotal
+    val items = summary?.items ?: uiState.selectedItems
+    val subtotal = summary?.subtotal ?: uiState.subtotal
+    val discount = summary?.voucherDiscountAmount ?: uiState.voucherDiscountAmount
+    val total = summary?.checkoutTotal ?: uiState.checkoutTotal
+    val voucherCode = summary?.voucherCode ?: uiState.voucherCode
+    val voucherLabel = summary?.voucherLabel ?: uiState.voucherLabel
+    val balance = summary?.watuPayBalance ?: uiState.watuPayBalance
 
     val hasVoucher = discount > 0L
     val isMultipleItems = items.size > 1
 
-    val orderId = when {
+    val orderId = summary?.orderId ?: when {
         hasVoucher -> "GS-ORD-20261101-003"
         isMultipleItems -> "GS-ORD-20261101-002"
         else -> "GS-ORD-20261101-001"
@@ -107,7 +111,7 @@ fun CheckoutSuccessScreen(
                 SuccessTitle(
                     itemCount = items.size,
                     hasVoucher = hasVoucher,
-                    voucherCode = uiState.voucherCode,
+                    voucherCode = voucherCode,
                     discount = discount
                 )
 
@@ -116,8 +120,8 @@ fun CheckoutSuccessScreen(
                 // KHUSUS VOUCHER BERHASIL DIGUNAKAN
                 if (hasVoucher) {
                     UsedVoucherCard(
-                        code = uiState.voucherCode,
-                        discountLabel = uiState.voucherLabel,
+                        code = voucherCode,
+                        discountLabel = voucherLabel,
                         discountAmount = discount
                     )
 
@@ -137,7 +141,7 @@ fun CheckoutSuccessScreen(
 
                 // WATUPAY
                 WatuPaySuccessCard(
-                    balance = uiState.watuPayBalance
+                    balance = balance
                 )
 
                 Spacer(modifier = Modifier.height(18.dp))

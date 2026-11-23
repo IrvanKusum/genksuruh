@@ -1,5 +1,13 @@
-
 package com.example.genksuruh.feature.cart
+
+import com.example.genksuruh.feature.promo.Promo
+
+/** Kondisi mode alur detail pesanan. */
+enum class CartDetailMode {
+    DIRECT_ORDER,   // Variasi A: Klik "Pesan" -> Direct Checkout
+    ADD_TO_CART,    // Variasi B: Klik Keranjang -> Isi Detail dulu baru simpan
+    EDIT_CART_ITEM  // Variasi C: Klik "Edit" pada item keranjang
+}
 
 /** Kondisi validasi voucher. */
 enum class VoucherStatus {
@@ -19,6 +27,19 @@ enum class CheckoutProcessStatus {
     SUCCESS
 }
 
+/** Snapshot ringkasan transaksi checkout untuk ditampilkan di CheckoutSuccessScreen. */
+data class CheckoutSummary(
+    val orderId: String,
+    val items: List<CartItem>,
+    val subtotal: Long,
+    val voucherDiscountAmount: Long,
+    val voucherCode: String,
+    val voucherLabel: String,
+    val checkoutTotal: Long,
+    val watuPayBalance: Long,
+    val checkoutAttemptAt: String
+)
+
 /** Representasi tunggal kondisi UI Keranjang dan Checkout. */
 data class CartUiState(
     val isLoading: Boolean = true,
@@ -30,8 +51,13 @@ data class CartUiState(
     val itemPendingDelete: CartItem? = null,
     val showDeleteDialog: Boolean = false,
 
-    // Item sementara yang sedang diedit.
+    // Item sementara yang sedang diedit/diisi.
     val editingItem: CartItem? = null,
+    val detailMode: CartDetailMode = CartDetailMode.EDIT_CART_ITEM,
+    val directOrderDraft: CartItem? = null,
+
+    // Micro-interaction notification (Snackbar)
+    val userNotificationMessage: String? = null,
 
     // Undo item yang dihapus.
     val lastRemovedItem: CartItem? = null,
@@ -47,22 +73,30 @@ data class CartUiState(
     val voucherMessage: String? = null,
     val voucherClaimId: String? = null,
     val voucherLabel: String = "",
+    val availableVouchers: List<Promo> = emptyList(),
 
-    // Saldo WatuPay (dummy).
+    // Saldo WatuPay.
     val watuPayBalance: Long = 145_500L,
 
     // Proses checkout.
     val checkoutProcessStatus: CheckoutProcessStatus =
         CheckoutProcessStatus.IDLE,
     val checkoutFailureMessage: String? = null,
-    val checkoutAttemptAt: String? = null
+    val checkoutAttemptAt: String? = null,
+
+    // Snapshot sukses checkout untuk CheckoutSuccessScreen
+    val lastCheckoutSummary: CheckoutSummary? = null
 ) {
 
     val totalItemCount: Int
         get() = items.size
 
     val selectedItems: List<CartItem>
-        get() = items.filter { it.isSelected }
+        get() = if (detailMode == CartDetailMode.DIRECT_ORDER && directOrderDraft != null) {
+            listOf(directOrderDraft)
+        } else {
+            items.filter { it.isSelected }
+        }
 
     val selectedCount: Int
         get() = selectedItems.size
