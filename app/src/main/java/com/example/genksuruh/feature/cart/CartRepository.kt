@@ -191,7 +191,7 @@ object DummyCartRepository : CartRepository {
             price = service.price,
             imageUrl = service.imageUrl,
             location = "Area Kampus UB",
-            date = "10 November 2026",
+            date = try { java.time.LocalDate.now().format(java.time.format.DateTimeFormatter.ofPattern("d MMMM yyyy", java.util.Locale("id", "ID"))) } catch (_: Exception) { "10 November 2026" },
             time = "12.00 WIB",
             note = "",
             quantity = 1,

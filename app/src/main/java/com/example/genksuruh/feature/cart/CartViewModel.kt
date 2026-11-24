@@ -1,29 +1,36 @@
 package com.example.genksuruh.feature.cart
 
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.genksuruh.core.auth.AuthRepository
+import com.example.genksuruh.core.model.Service
+import com.example.genksuruh.core.network.SupabaseClient
+import com.example.genksuruh.feature.promo.DiscountType
+import com.example.genksuruh.feature.promo.PromoModule
+import com.example.genksuruh.feature.promo.effectiveStatus
+import com.example.genksuruh.feature.tracking.FakeTrackingRepository
+import com.example.genksuruh.feature.tracking.SupabaseTrackingRepository
+import io.github.jan.supabase.auth.auth
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
+import java.time.LocalDate
+import java.time.LocalTime
+import java.time.format.DateTimeFormatter
 import java.util.Date
 import java.util.Locale
 import java.util.TimeZone
-
-import com.example.genksuruh.core.model.Service
-import com.example.genksuruh.feature.promo.DiscountType
-import com.example.genksuruh.feature.promo.PromoModule
-import com.example.genksuruh.feature.promo.effectiveStatus
-import com.example.genksuruh.feature.tracking.FakeTrackingRepository
+import java.util.UUID
 import com.example.genksuruh.feature.promo.VoucherStatus as ClaimStatus
-import com.example.genksuruh.feature.tracking.SupabaseTrackingRepository
 
 /**
  * Hasil proses checkout.
@@ -34,41 +41,36 @@ enum class CheckoutResult {
     INSUFFICIENT_BALANCE
 }
 
+private fun getTodayFormattedDate(): String {
+    val locale = Locale("id", "ID")
+    return try {
+        LocalDate.now().format(DateTimeFormatter.ofPattern("d MMMM yyyy", locale))
+    } catch (_: Exception) {
+        SimpleDateFormat("d MMMM yyyy", locale).format(Date())
+    }
+}
+
+private fun getCurrentFormattedTime(): String {
+    val locale = Locale("id", "ID")
+    return try {
+        LocalTime.now().format(DateTimeFormatter.ofPattern("HH.mm 'WIB'", locale))
+    } catch (_: Exception) {
+        SimpleDateFormat("HH.mm 'WIB'", locale).format(Date())
+    }
+}
+
 /**
  * ViewModel fitur Keranjang dan Checkout.
- *
- * Tanggung jawab:
- * - Mengelola state UI.
- * - Menerima event dari View.
- * - Memanggil Repository untuk mengelola data.
- * - Mengelola validasi voucher dan checkout.
- *
- * Tidak mengakses CartDummyData secara langsung.
  */
 class CartViewModel(
     private val repository: CartRepository = CartRepository.shared
 ) : ViewModel() {
 
-    // =====================================================
-    // UI STATE
-    // =====================================================
-
-    /**
-     * State internal yang dikelola ViewModel.
-     * Tidak menyimpan daftar item karena daftar item dimiliki Repository.
-     */
     private val _screenState = MutableStateFlow(CartUiState())
 
-    /**
-     * UI State final merupakan gabungan:
-     * 1. Data item dari Repository.
-     * 2. Status UI dari ViewModel.
-     *
-     * UI hanya membaca StateFlow ini.
-     */
     val uiState: StateFlow<CartUiState> = combine(
         repository.cartItems,
-        com.example.genksuruh.core.auth.AuthRepository.account,
+        AuthRepository.account,
         _screenState
     ) { cartItems, account, screenState ->
 
@@ -85,18 +87,11 @@ class CartViewModel(
 
     init {
         loadCart()
+        loadAvailableVouchers()
     }
 
-    // =====================================================
-    // CART
-    // =====================================================
-
-    /**
-     * Memuat data keranjang melalui Repository.
-     */
     fun loadCart() {
         viewModelScope.launch {
-
             _screenState.update {
                 it.copy(
                     isLoading = true,
@@ -107,6 +102,7 @@ class CartViewModel(
 
             try {
                 repository.loadCart()
+                loadAvailableVouchers()
 
                 _screenState.update {
                     it.copy(
@@ -132,133 +128,174 @@ class CartViewModel(
         }
     }
 
-    /**
-     * Hanya untuk pengujian Error State.
-     */
+    fun loadAvailableVouchers() {
+        viewModelScope.launch {
+            runCatching {
+                val currentAccount = AuthRepository.account.value
+                val currentUserId = currentAccount?.id ?: runCatching { SupabaseClient.client.auth.currentUserOrNull()?.id }.getOrNull().orEmpty()
+                val currentUserName = currentAccount?.name ?: PromoModule.session.currentUser
+
+                val promoRepo = PromoModule.repository
+                val promos = promoRepo.promos.first()
+                val claims = promoRepo.claims.first()
+
+                val activeClaimedPromoIds = claims
+                    .filter {
+                        (it.userId == currentUserId || it.userId.isBlank() || it.userName.equals(currentUserName, ignoreCase = true)) &&
+                                it.status == ClaimStatus.AKTIF
+                    }
+                    .map { it.promoId }
+                    .toSet()
+
+                val available = promos.filter { it.id in activeClaimedPromoIds && !it.isExpired }
+                _screenState.update { it.copy(availableVouchers = available) }
+            }.onFailure { e ->
+                Log.e("CartViewModel", "loadAvailableVouchers gagal: ${e.message}", e)
+            }
+        }
+    }
+
     fun simulateLoadError() {
         repository.simulateNextLoadFailure()
         loadCart()
     }
 
-    /**
-     * Mengubah pilihan satu item.
-     */
     fun toggleItemSelection(itemId: String) {
         repository.toggleItemSelection(itemId)
         invalidateVoucherAfterCartChange()
     }
 
-    /**
-     * Memilih semua item atau membatalkan semua pilihan.
-     */
+    fun selectOnly(itemId: String) {
+        repository.selectOnly(itemId)
+        invalidateVoucherAfterCartChange()
+    }
+
     fun selectAllItems() {
         repository.selectAllItems()
         invalidateVoucherAfterCartChange()
     }
 
-    /**
-     * Menambah quantity item.
-     */
-    fun increaseQuantity(itemId: String) {
-        repository.increaseQuantity(itemId)
-        invalidateVoucherAfterCartChange()
-    }
+    fun increaseQuantity(itemId: String) {}
 
-    /**
-     * Mengurangi quantity item.
-     */
-    fun decreaseQuantity(itemId: String) {
-        repository.decreaseQuantity(itemId)
-        invalidateVoucherAfterCartChange()
-    }
+    fun decreaseQuantity(itemId: String) {}
 
     // =====================================================
-    // EDIT CART ITEM
+    // EDIT & DRAFT DETAIL PESANAN
     // =====================================================
 
-    /**
-     * Mengambil item dari Repository untuk diedit.
-     */
-    fun startEditingItem(itemId: String) {
-        val item = repository.getItemById(itemId) ?: return
-
-        _screenState.update {
-            it.copy(
-                editingItem = item.copy()
-            )
-        }
-    }
-
-    fun prepareAddToCart(service: Service) {
-        val item = CartItem(
-            id = service.id,
+    /** Variasi A: Klik "Pesan" -> Direct Order tanpa simpan ke cart_items dahulu */
+    fun prepareDirectOrder(service: Service) {
+        val uid = AuthRepository.account.value?.id ?: runCatching { SupabaseClient.client.auth.currentUserOrNull()?.id }.getOrNull().orEmpty()
+        val todayStr = getTodayFormattedDate()
+        val timeNowStr = getCurrentFormattedTime()
+        val draft = CartItem(
+            id = UUID.randomUUID().toString(),
             serviceId = service.id,
+            userId = uid,
             serviceName = service.title,
             category = service.category,
             providerName = service.providerName,
             price = service.price,
             imageUrl = service.imageUrl,
             location = "Area Kampus UB",
-            date = "17 November 2026",
-            time = "12.00 WIB",
+            date = todayStr,
+            time = timeNowStr,
             note = "",
             quantity = 1,
             isSelected = true
         )
         _screenState.update {
             it.copy(
+                editingItem = draft,
+                detailMode = CartDetailMode.DIRECT_ORDER,
+                directOrderDraft = draft
+            )
+        }
+        resetCheckoutState()
+    }
+
+    /** Variasi B: Klik "Tambahkan ke Keranjang" -> isi detail dulu baru simpan ke cart_items */
+    fun prepareAddToCart(service: Service) {
+        val uid = AuthRepository.account.value?.id ?: runCatching { SupabaseClient.client.auth.currentUserOrNull()?.id }.getOrNull().orEmpty()
+        val todayStr = getTodayFormattedDate()
+        val timeNowStr = getCurrentFormattedTime()
+        val draft = CartItem(
+            id = UUID.randomUUID().toString(),
+            serviceId = service.id,
+            userId = uid,
+            serviceName = service.title,
+            category = service.category,
+            providerName = service.providerName,
+            price = service.price,
+            imageUrl = service.imageUrl,
+            location = "Area Kampus UB",
+            date = todayStr,
+            time = timeNowStr,
+            note = "",
+            quantity = 1,
+            isSelected = true
+        )
+        _screenState.update {
+            it.copy(
+                editingItem = draft,
                 detailMode = CartDetailMode.ADD_TO_CART,
-                editingItem = item,
                 directOrderDraft = null
             )
         }
     }
 
-    fun prepareDirectOrder(service: Service) {
-        val item = CartItem(
-            id = service.id,
-            serviceId = service.id,
-            serviceName = service.title,
-            category = service.category,
-            providerName = service.providerName,
-            price = service.price,
-            imageUrl = service.imageUrl,
-            location = "Area Kampus UB",
-            date = "17 November 2026",
-            time = "12.00 WIB",
-            note = "",
-            quantity = 1,
-            isSelected = true
-        )
+    /** Variasi C: Klik "Edit" pada item di Keranjang */
+    fun startEditingItem(itemId: String) {
+        val item = repository.getItemById(itemId) ?: return
+
         _screenState.update {
             it.copy(
-                detailMode = CartDetailMode.DIRECT_ORDER,
-                editingItem = item,
-                directOrderDraft = item
+                editingItem = item.copy(),
+                detailMode = CartDetailMode.EDIT_CART_ITEM,
+                directOrderDraft = null
             )
         }
     }
 
-    fun confirmDirectOrder(onSuccess: () -> Unit) {
-        _screenState.update { state ->
-            state.copy(directOrderDraft = state.editingItem)
+    fun confirmAddToCart(onSuccess: () -> Unit) {
+        val draft = _screenState.value.editingItem ?: return
+        repository.addCartItemWithDetails(draft)
+        _screenState.update {
+            it.copy(
+                editingItem = null,
+                userNotificationMessage = "Pesanan berhasil disimpan di keranjang"
+            )
         }
         onSuccess()
     }
 
-    fun confirmAddToCart(onSuccess: () -> Unit) {
-        val editing = _screenState.value.editingItem ?: return
-        repository.addCartItemWithDetails(editing)
+    fun confirmEditCartItem(onSuccess: () -> Unit) {
+        val editedItem = _screenState.value.editingItem ?: return
+        repository.updateItem(editedItem)
         _screenState.update {
-            it.copy(editingItem = null)
+            it.copy(
+                editingItem = null,
+                userNotificationMessage = "Detail pesanan berhasil diedit"
+            )
         }
         invalidateVoucherAfterCartChange()
         onSuccess()
     }
 
-    fun confirmEditCartItem(onSuccess: () -> Unit) {
-        saveEditingItem()
+    fun confirmDirectOrder(onSuccess: () -> Unit) {
+        val draft = _screenState.value.editingItem ?: return
+        _screenState.update {
+            it.copy(
+                editingItem = null,
+                directOrderDraft = draft
+            )
+        }
+        resetCheckoutState()
         onSuccess()
+    }
+
+    fun dismissNotificationMessage() {
+        _screenState.update { it.copy(userNotificationMessage = null) }
     }
 
     fun updateEditingLocation(location: String) {
@@ -309,26 +346,19 @@ class CartViewModel(
         updateEditingQuantity(quantity - 1)
     }
 
-    /**
-     * Helper untuk memperbarui draft item yang sedang diedit.
-     */
     private fun updateEditingItem(
         transform: (CartItem) -> CartItem
     ) {
         _screenState.update { state ->
-
-            val item = state.editingItem
-                ?: return@update state
-
+            val item = state.editingItem ?: return@update state
+            val updated = transform(item)
             state.copy(
-                editingItem = transform(item)
+                editingItem = updated,
+                directOrderDraft = if (state.detailMode == CartDetailMode.DIRECT_ORDER) transform(item) else state.directOrderDraft
             )
         }
     }
 
-    /**
-     * Menyimpan hasil edit melalui Repository.
-     */
     fun saveEditingItem() {
         val editedItem = _screenState.value.editingItem ?: return
 
@@ -343,9 +373,6 @@ class CartViewModel(
         }
     }
 
-    /**
-     * Membatalkan proses edit.
-     */
     fun cancelEditingItem() {
         _screenState.update {
             it.copy(editingItem = null)
@@ -356,9 +383,6 @@ class CartViewModel(
     // DELETE + UNDO
     // =====================================================
 
-    /**
-     * Membuka dialog konfirmasi hapus.
-     */
     fun removeItem(itemId: String) {
         val item = repository.getItemById(itemId) ?: return
 
@@ -370,9 +394,6 @@ class CartViewModel(
         }
     }
 
-    /**
-     * Menutup dialog tanpa menghapus item.
-     */
     fun dismissDeleteDialog() {
         _screenState.update {
             it.copy(
@@ -382,12 +403,8 @@ class CartViewModel(
         }
     }
 
-    /**
-     * Menghapus item melalui Repository.
-     */
     fun confirmRemoveItem() {
-        val target = _screenState.value.itemPendingDelete
-            ?: return
+        val target = _screenState.value.itemPendingDelete ?: return
 
         val removed = repository.removeItem(target.id)
 
@@ -406,14 +423,9 @@ class CartViewModel(
         }
     }
 
-    /**
-     * Mengembalikan item yang baru dihapus.
-     */
     fun undoRemoveItem() {
         val current = _screenState.value
-
-        val removedItem = current.lastRemovedItem
-            ?: return
+        val removedItem = current.lastRemovedItem ?: return
 
         repository.restoreItem(
             item = removedItem,
@@ -431,9 +443,6 @@ class CartViewModel(
         invalidateVoucherAfterCartChange()
     }
 
-    /**
-     * Menutup Snackbar Undo.
-     */
     fun dismissUndoSnackbar() {
         _screenState.update {
             it.copy(
@@ -448,9 +457,6 @@ class CartViewModel(
     // VOUCHER
     // =====================================================
 
-    /**
-     * Memperbarui kode voucher.
-     */
     fun updateVoucherCode(code: String) {
         _screenState.update {
             it.copy(
@@ -468,9 +474,6 @@ class CartViewModel(
         }
     }
 
-    /**
-     * Memvalidasi voucher membaca promo asli milik PromoModule.
-     */
     fun applyVoucher() {
         val initial = uiState.value
         val code = initial.voucherCode.trim().uppercase()
@@ -489,7 +492,7 @@ class CartViewModel(
         }
 
         viewModelScope.launch {
-            delay(900L)
+            delay(400L)
 
             val latest = uiState.value
             if (
@@ -497,118 +500,134 @@ class CartViewModel(
                 latest.voucherStatus != VoucherStatus.VALIDATING
             ) return@launch
 
-            val promoRepo = PromoModule.repository
-            val userName = PromoModule.session.currentUser
+            try {
+                val currentAccount = AuthRepository.account.value
+                val currentUserId = currentAccount?.id ?: runCatching { SupabaseClient.client.auth.currentUserOrNull()?.id }.getOrNull().orEmpty()
+                val currentUserName = currentAccount?.name ?: PromoModule.session.currentUser
 
-            val promo = promoRepo.promos.first()
-                .find { it.code.equals(code, ignoreCase = true) }
+                val promoRepo = PromoModule.repository
+                val promos = promoRepo.promos.first()
+                val claims = promoRepo.claims.first()
 
-            val claim = promo?.let { p ->
-                promoRepo.claims.first().find {
-                    it.promoId == p.id &&
-                            it.userName == userName &&
-                            it.effectiveStatus(p) == ClaimStatus.AKTIF
-                }
-            }
+                val promo = promos.find { it.code.trim().equals(code, ignoreCase = true) }
 
-            // Hanya item yang cocok dengan jasa/kategori promo yang dihitung.
-            val eligible = promo?.let { p ->
-                latest.selectedItems.filter {
-                    it.serviceName.equals(p.serviceName, ignoreCase = true) ||
-                            it.category.equals(p.category, ignoreCase = true)
-                }
-            }.orEmpty()
-            val base = eligible.sumOf { it.lineTotal }
-
-            fun fail(status: VoucherStatus, message: String, minimum: Long? = null) {
-                _screenState.update {
-                    it.copy(
-                        voucherStatus = status,
-                        voucherDiscountAmount = 0L,
-                        voucherMessage = message,
-                        voucherMinimumTransaction = minimum ?: it.voucherMinimumTransaction
-                    )
-                }
-            }
-
-            when {
-                promo == null ->
-                    fail(VoucherStatus.NOT_FOUND, "Kode voucher tidak ditemukan.")
-
-                promo.isExpired ->
-                    fail(VoucherStatus.NOT_FOUND, "Promo ini sudah berakhir.")
-
-                claim == null ->
-                    fail(
-                        VoucherStatus.NOT_FOUND,
-                        "Voucher belum kamu klaim atau sudah terpakai. Klaim dulu di menu Promo."
-                    )
-
-                eligible.isEmpty() ->
-                    fail(
-                        VoucherStatus.NOT_FOUND,
-                        "Voucher ini hanya berlaku untuk \"${promo.serviceName}\"."
-                    )
-
-                base < promo.minOrder ->
-                    fail(
-                        VoucherStatus.MINIMUM_NOT_MET,
-                        "Minimal transaksi ${formatRupiah(promo.minOrder.toLong())}. " +
-                                "Tambahkan jasa atau quantity agar voucher dapat digunakan.",
-                        promo.minOrder.toLong()
-                    )
-
-                else -> {
-                    val raw = when (promo.discountType) {
-                        DiscountType.PERSEN -> base * promo.discountValue / 100L
-                        DiscountType.NOMINAL -> promo.discountValue.toLong()
+                val claim = promo?.let { p ->
+                    claims.find {
+                        it.promoId == p.id &&
+                                (it.userId == currentUserId || it.userId.isBlank() || it.userName.equals(currentUserName, ignoreCase = true)) &&
+                                it.effectiveStatus(p) == ClaimStatus.AKTIF
                     }
-                    val capped =
-                        if (promo.discountType == DiscountType.PERSEN && promo.maxDiscount > 0)
-                            raw.coerceAtMost(promo.maxDiscount.toLong())
-                        else raw
-                    val discount = capped.coerceAtMost(base)
+                }
 
+                fun fail(status: VoucherStatus, message: String, minimum: Long? = null) {
                     _screenState.update {
                         it.copy(
-                            voucherStatus = VoucherStatus.APPLIED,
-                            voucherDiscountAmount = discount,
-                            voucherMinimumTransaction = promo.minOrder.toLong(),
-                            voucherClaimId = claim.id,
-                            voucherLabel =
-                                if (promo.discountType == DiscountType.PERSEN)
-                                    "Diskon ${promo.discountValue}%"
-                                else "Potongan ${formatRupiah(promo.discountValue.toLong())}",
-                            voucherMessage = "Voucher berhasil diterapkan."
+                            voucherStatus = status,
+                            voucherDiscountAmount = 0L,
+                            voucherMessage = message,
+                            voucherMinimumTransaction = minimum ?: it.voucherMinimumTransaction
                         )
                     }
+                }
+
+                when {
+                    promo == null ->
+                        fail(VoucherStatus.NOT_FOUND, "Kode voucher \"$code\" tidak ditemukan.")
+
+                    promo.isExpired ->
+                        fail(VoucherStatus.NOT_FOUND, "Promo \"${promo.title}\" sudah berakhir.")
+
+                    claim == null ->
+                        fail(
+                            VoucherStatus.NOT_FOUND,
+                            "Voucher \"${promo.code}\" belum kamu klaim atau sudah terpakai. Klaim dulu di menu Promo."
+                        )
+
+                    else -> {
+                        val isUniversalCategory = promo.category.isBlank() ||
+                                promo.category.equals("Semua Layanan", ignoreCase = true) ||
+                                promo.category.equals("Semua", ignoreCase = true) ||
+                                promo.category.equals("Lainnya", ignoreCase = true)
+
+                        val eligible = if (isUniversalCategory) {
+                            latest.selectedItems
+                        } else {
+                            latest.selectedItems.filter {
+                                it.category.equals(promo.category, ignoreCase = true) ||
+                                        it.serviceName.equals(promo.serviceName, ignoreCase = true) ||
+                                        (promo.serviceId != null && promo.serviceId == it.serviceId)
+                            }
+                        }
+
+                        if (eligible.isEmpty()) {
+                            fail(
+                                VoucherStatus.NOT_FOUND,
+                                "Voucher ini hanya berlaku untuk kategori/layanan \"${promo.category.ifBlank { promo.serviceName }}\"."
+                            )
+                            return@launch
+                        }
+
+                        val base = eligible.sumOf { it.lineTotal }
+
+                        if (base < promo.minOrder) {
+                            fail(
+                                VoucherStatus.MINIMUM_NOT_MET,
+                                "Minimal transaksi ${formatRupiah(promo.minOrder.toLong())} untuk menggunakan voucher ini.",
+                                promo.minOrder.toLong()
+                            )
+                            return@launch
+                        }
+
+                        val raw = when (promo.discountType) {
+                            DiscountType.PERSEN -> base * promo.discountValue / 100L
+                            DiscountType.NOMINAL -> promo.discountValue.toLong()
+                        }
+                        val capped =
+                            if (promo.discountType == DiscountType.PERSEN && promo.maxDiscount > 0)
+                                raw.coerceAtMost(promo.maxDiscount.toLong())
+                            else raw
+                        val discount = capped.coerceAtMost(base)
+
+                        _screenState.update {
+                            it.copy(
+                                voucherStatus = VoucherStatus.APPLIED,
+                                voucherDiscountAmount = discount,
+                                voucherMinimumTransaction = promo.minOrder.toLong(),
+                                voucherClaimId = claim.id,
+                                voucherLabel =
+                                    if (promo.discountType == DiscountType.PERSEN)
+                                        "Diskon ${promo.discountValue}%"
+                                    else "Potongan ${formatRupiah(promo.discountValue.toLong())}",
+                                voucherMessage = "Voucher ${promo.code} berhasil diterapkan!"
+                            )
+                        }
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e("CartViewModel", "applyVoucher error: ${e.message}", e)
+                _screenState.update {
+                    it.copy(
+                        voucherStatus = VoucherStatus.NOT_FOUND,
+                        voucherMessage = e.message ?: "Gagal memvalidasi voucher."
+                    )
                 }
             }
         }
     }
 
-    /**
-     * Menghapus voucher.
-     */
     fun removeVoucher() {
         _screenState.update {
             it.copy(
                 voucherCode = "",
                 voucherStatus = VoucherStatus.IDLE,
                 voucherDiscountAmount = 0L,
-                voucherClaimId = null,
-                voucherLabel = "",
                 voucherMessage = null
             )
         }
     }
 
-    /**
-     * Membatalkan validasi voucher ketika data keranjang berubah.
-     */
     private fun invalidateVoucherAfterCartChange() {
         _screenState.update { state ->
-
             val voucherNeedsRefresh =
                 state.voucherStatus != VoucherStatus.IDLE &&
                         state.voucherStatus != VoucherStatus.INPUT
@@ -634,19 +653,12 @@ class CartViewModel(
     // CHECKOUT
     // =====================================================
 
-    /**
-     * Memproses checkout menggunakan simulasi WatuPay.
-     *
-     * Repository menyediakan data keranjang.
-     * ViewModel melakukan validasi dan mengelola hasil transaksi.
-     */
     fun processCheckout(
         simulateTechnicalFailure: Boolean = false,
         onResult: (CheckoutResult) -> Unit
     ) {
         val current = uiState.value
 
-        // Mencegah checkout ganda.
         if (
             current.checkoutProcessStatus == CheckoutProcessStatus.PROCESSING ||
             current.checkoutProcessStatus == CheckoutProcessStatus.SUCCESS
@@ -663,7 +675,6 @@ class CartViewModel(
 
         if (current.voucherStatus == VoucherStatus.VALIDATING) return
 
-        // Validasi kecukupan saldo.
         if (!current.isWatuPayBalanceSufficient) {
             onResult(CheckoutResult.INSUFFICIENT_BALANCE)
             return
@@ -678,11 +689,10 @@ class CartViewModel(
         }
 
         viewModelScope.launch {
-            delay(1200L)
+            delay(600L)
 
             val latest = uiState.value
 
-            // Validasi ulang saldo.
             if (!latest.isWatuPayBalanceSufficient) {
                 _screenState.update {
                     it.copy(
@@ -698,16 +708,10 @@ class CartViewModel(
                 "d MMM yyyy • HH:mm 'WIB'",
                 Locale("id", "ID")
             )
-
-            formatter.timeZone =
-                TimeZone.getTimeZone("Asia/Jakarta")
-
+            formatter.timeZone = TimeZone.getTimeZone("Asia/Jakarta")
             val attemptTime = formatter.format(Date())
 
             if (simulateTechnicalFailure) {
-
-                // Gagal teknis:
-                // saldo, item, dan voucher tidak berubah.
                 _screenState.update {
                     it.copy(
                         checkoutProcessStatus = CheckoutProcessStatus.FAILED,
@@ -716,71 +720,82 @@ class CartViewModel(
                         checkoutAttemptAt = attemptTime
                     )
                 }
-
                 onResult(CheckoutResult.FAILED)
-
             } else {
+                val directItem = if (latest.detailMode == CartDetailMode.DIRECT_ORDER) latest.directOrderDraft else null
 
-                // Berhasil: buat pesanan, potong saldo, dan pakai voucher
-                // sekaligus di server (RPC process_checkout).
-                val isDirect = latest.detailMode == CartDetailMode.DIRECT_ORDER &&
-                        latest.directOrderDraft != null
+                val summaryItems = latest.selectedItems.map { it.copy() }
+                val summarySubtotal = latest.subtotal
+                val summaryDiscount = latest.voucherDiscountAmount
+                val summaryTotal = latest.checkoutTotal
+                val summaryVoucherCode = latest.voucherCode
+                val summaryVoucherLabel = latest.voucherLabel
+                val summaryWatuPayBalance = (latest.watuPayBalance - summaryTotal).coerceAtLeast(0L)
 
-                val result = repository.checkout(
-                    selectedItems = latest.selectedItems,
-                    voucherCode = latest.voucherCode.takeIf {
-                        latest.voucherStatus == VoucherStatus.APPLIED && it.isNotBlank()
-                    },
-                    discountAmount = latest.voucherDiscountAmount,
-                    totalPayable = latest.checkoutTotal,
-                    directServiceItem = if (isDirect) latest.directOrderDraft else null
+                val orderIdStr = when {
+                    summaryDiscount > 0L -> "GS-ORD-${SimpleDateFormat("yyyyMMdd", Locale.US).format(Date())}-003"
+                    summaryItems.size > 1 -> "GS-ORD-${SimpleDateFormat("yyyyMMdd", Locale.US).format(Date())}-002"
+                    else -> "GS-ORD-${SimpleDateFormat("yyyyMMdd", Locale.US).format(Date())}-001"
+                }
+
+                val checkoutSummary = CheckoutSummary(
+                    orderId = orderIdStr,
+                    items = summaryItems,
+                    subtotal = summarySubtotal,
+                    voucherDiscountAmount = summaryDiscount,
+                    voucherCode = summaryVoucherCode,
+                    voucherLabel = summaryVoucherLabel,
+                    checkoutTotal = summaryTotal,
+                    watuPayBalance = summaryWatuPayBalance,
+                    checkoutAttemptAt = attemptTime
                 )
 
-                if (result.isFailure) {
-                    val msg = result.exceptionOrNull()?.message
-                        ?.lineSequence()?.firstOrNull()?.takeIf { it.isNotBlank() }
-                        ?: "Terjadi kendala saat memproses pesanan. Silakan coba kembali."
+                val checkoutRes = repository.checkout(
+                    selectedItems = latest.selectedItems,
+                    voucherCode = latest.voucherCode.takeIf { latest.voucherStatus == VoucherStatus.APPLIED },
+                    discountAmount = latest.voucherDiscountAmount,
+                    totalPayable = latest.checkoutTotal,
+                    directServiceItem = directItem
+                )
+
+                if (checkoutRes.isSuccess) {
+                    latest.voucherClaimId
+                        ?.takeIf { latest.voucherStatus == VoucherStatus.APPLIED }
+                        ?.let { PromoModule.repository.markClaimUsed(it) }
+
+                    runCatching { SupabaseTrackingRepository.refreshOrders() }
+
+                    _screenState.update {
+                        it.copy(
+                            checkoutProcessStatus = CheckoutProcessStatus.SUCCESS,
+                            checkoutFailureMessage = null,
+                            checkoutAttemptAt = attemptTime,
+                            directOrderDraft = null,
+                            lastCheckoutSummary = checkoutSummary
+                        )
+                    }
+
+                    onResult(CheckoutResult.SUCCESS)
+                } else {
+                    val errorMsg = checkoutRes.exceptionOrNull()?.message
+                        ?: "Gagal memproses pesanan. Silakan coba kembali."
+
                     _screenState.update {
                         it.copy(
                             checkoutProcessStatus = CheckoutProcessStatus.FAILED,
-                            checkoutFailureMessage = msg,
+                            checkoutFailureMessage = errorMsg,
                             checkoutAttemptAt = attemptTime
                         )
                     }
+
                     onResult(CheckoutResult.FAILED)
-                    return@launch
                 }
-
-                // Sinkronkan status voucher di tampilan promo.
-                latest.voucherClaimId
-                    ?.takeIf { latest.voucherStatus == VoucherStatus.APPLIED }
-                    ?.let { PromoModule.repository.markClaimUsed(it) }
-
-                val payable = latest.checkoutTotal
-
-                _screenState.update {
-                    it.copy(
-                        watuPayBalance = (
-                                it.watuPayBalance - payable
-                                ).coerceAtLeast(0L),
-                        checkoutProcessStatus = CheckoutProcessStatus.SUCCESS,
-                        checkoutFailureMessage = null,
-                        checkoutAttemptAt = attemptTime
-                    )
-                }
-
-                // Item tetap disimpan untuk halaman Success.
-                onResult(CheckoutResult.SUCCESS)
             }
         }
     }
 
-    /**
-     * Mengatur ulang status setelah kegagalan checkout.
-     */
     fun resetCheckoutProcess() {
         _screenState.update { state ->
-
             if (
                 state.checkoutProcessStatus == CheckoutProcessStatus.PROCESSING ||
                 state.checkoutProcessStatus == CheckoutProcessStatus.SUCCESS
@@ -796,19 +811,15 @@ class CartViewModel(
         }
     }
 
-    /** "Pesan Sekarang": masukkan jasa ke keranjang, centang hanya itu, lalu checkout. */
     fun buyNow(service: Service) {
-        repository.addService(service)
-        repository.selectOnly(service.id)
-        resetCheckoutState()
+        prepareDirectOrder(service)
     }
 
-    /** Dipanggil saat meninggalkan layar Sukses: bersihkan item yang sudah dibayar. */
     fun finishCheckout() {
         repository.removeSelected()
         resetCheckoutState()
         viewModelScope.launch {
-            com.example.genksuruh.core.auth.AuthRepository.refreshProfile()
+            AuthRepository.refreshProfile()
         }
     }
 
@@ -823,14 +834,9 @@ class CartViewModel(
                 voucherDiscountAmount = 0L,
                 voucherMessage = null,
                 voucherClaimId = null,
-                voucherLabel = ""
+                voucherLabel = "",
+                lastCheckoutSummary = null
             )
-        }
-    }
-
-    fun dismissNotificationMessage() {
-        _screenState.update {
-            it.copy(userNotificationMessage = null)
         }
     }
 }

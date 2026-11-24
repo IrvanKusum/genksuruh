@@ -95,8 +95,8 @@ private fun CartItemDetailContent(
 
     fun handleConfirm() {
         val sanitizedLocation = item.location.ifBlank { "Area Kampus UB" }
-        val sanitizedDate = item.date.ifBlank { "17 November 2026" }
-        val sanitizedTime = item.time.ifBlank { "12.00 WIB" }
+        val sanitizedDate = item.date.ifBlank { formatCartDate(LocalDate.now()) }
+        val sanitizedTime = item.time.ifBlank { getCurrentFormattedTime() }
 
         viewModel.updateEditingLocation(sanitizedLocation)
         viewModel.updateEditingDate(sanitizedDate)
@@ -1457,11 +1457,24 @@ private fun formatCartDate(date: LocalDate): String {
     )
 }
 
+private fun getCurrentFormattedTime(): String {
+    val locale = Locale("id", "ID")
+    return try {
+        java.time.LocalTime.now().format(DateTimeFormatter.ofPattern("HH.mm 'WIB'", locale))
+    } catch (_: Exception) {
+        java.text.SimpleDateFormat("HH.mm 'WIB'", locale).format(java.util.Date())
+    }
+}
+
 private fun parseCartTime(value: String): Pair<Int, Int> {
     val match = Regex("""(\d{1,2})[.:](\d{2})""").find(value)
 
-    val hour = match?.groupValues?.get(1)?.toIntOrNull() ?: 12
-    val minute = match?.groupValues?.get(2)?.toIntOrNull() ?: 30
+    val now = try { java.time.LocalTime.now() } catch (_: Exception) { null }
+    val defaultHour = now?.hour ?: 12
+    val defaultMinute = now?.minute ?: 0
+
+    val hour = match?.groupValues?.get(1)?.toIntOrNull() ?: defaultHour
+    val minute = match?.groupValues?.get(2)?.toIntOrNull() ?: defaultMinute
 
     return hour.coerceIn(0, 23) to minute.coerceIn(0, 59)
 }

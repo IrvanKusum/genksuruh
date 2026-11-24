@@ -66,8 +66,26 @@ private fun getTodayFormattedDate(): String {
     }
 }
 
+private fun getCurrentFormattedTime(): String {
+    val locale = Locale("id", "ID")
+    return try {
+        java.time.LocalTime.now().format(java.time.format.DateTimeFormatter.ofPattern("HH.mm 'WIB'", locale))
+    } catch (_: Exception) {
+        SimpleDateFormat("HH.mm 'WIB'", locale).format(Date())
+    }
+}
+
+private fun getCurrentPostgresTime(): String {
+    val locale = Locale.US
+    return try {
+        java.time.LocalTime.now().format(java.time.format.DateTimeFormatter.ofPattern("HH:mm:ss", locale))
+    } catch (_: Exception) {
+        SimpleDateFormat("HH:mm:ss", locale).format(Date())
+    }
+}
+
 private fun toPostgresTime(timeStr: String): String {
-    if (timeStr.isBlank()) return "09:00:00"
+    if (timeStr.isBlank()) return getCurrentPostgresTime()
     val match = Regex("""(\d{1,2})[.:](\d{2})(?:[.:](\d{2}))?""").find(timeStr)
     if (match != null) {
         val h = match.groupValues[1].padStart(2, '0')
@@ -75,7 +93,7 @@ private fun toPostgresTime(timeStr: String): String {
         val s = match.groupValues.getOrNull(3)?.ifBlank { "00" } ?: "00"
         return "$h:$m:$s"
     }
-    return "09:00:00"
+    return getCurrentPostgresTime()
 }
 
 /**
@@ -90,19 +108,26 @@ object SupabaseCartRepository : CartRepository {
 
     private var shouldFailNextLoad = false
 
-    const val TEST_USER_ID = "00000000-0000-0000-0000-000000000001"
-
-    private fun myUserId(): String {
-        val accountId = AuthRepository.account.value?.id
+    private fun myUserId(): String? {
         val authUserId = runCatching { SupabaseClient.client.auth.currentUserOrNull()?.id }.getOrNull()
             ?: runCatching { SupabaseClient.client.auth.currentSessionOrNull()?.user?.id }.getOrNull()
-        val uid = accountId ?: authUserId ?: TEST_USER_ID
-        Log.d(TAG, "myUserId resolved: accountId=$accountId, authUserId=$authUserId -> uid=$uid")
+        val accountId = AuthRepository.account.value?.id
+        val uid = authUserId ?: accountId
+        if (uid.isNullOrBlank()) {
+            Log.e(TAG, "myUserId GAGAL: User ID null, tidak ada sesi Auth maupun account!")
+        } else {
+            Log.d(TAG, "myUserId resolved: authUserId=$authUserId, accountId=$accountId -> uid=$uid")
+        }
         return uid
     }
 
     override suspend fun loadCart() {
         val uid = myUserId()
+        if (uid == null) {
+            Log.w(TAG, "loadCart: User belum login, keranjang dibersihkan.")
+            _cartItems.value = emptyList()
+            return
+        }
 
         if (shouldFailNextLoad) {
             shouldFailNextLoad = false
@@ -143,7 +168,7 @@ object SupabaseCartRepository : CartRepository {
                     imageUrl = service?.imageUrl ?: row.str("image_url"),
                     location = row.str("location") ?: "Area Kampus UB",
                     date = row.str("booking_date", "date") ?: getTodayFormattedDate(),
-                    time = row.str("booking_time", "time") ?: "12.00 WIB",
+                    time = row.str("booking_time", "time") ?: getCurrentFormattedTime(),
                     note = row.str("note") ?: "",
                     quantity = 1,
                     isSelected = row.bool("is_selected") ?: true
@@ -217,20 +242,23 @@ object SupabaseCartRepository : CartRepository {
     override fun decreaseQuantity(itemId: String) {}
 
     override fun addCartItemWithDetails(item: CartItem): Boolean {
-        val uid = myUserId() ?: "anon"
+        val uid = myUserId()
+        if (uid.isNullOrBlank()) {
+            Log.e(TAG, "addCartItemWithDetails GAGAL: User ID null / belum login!")
+        }
         val newItem = item.copy(
-            id = UUID.randomUUID().toString(), // selalu ID baru, jangan pakai ID jasa
-            userId = uid,
+            id = if (item.id.isBlank()) UUID.randomUUID().toString() else item.id,
+            userId = uid ?: "",
             quantity = 1,
             isSelected = true
         )
 
         _cartItems.update { current -> current + newItem }
 
-        if (uid != "anon") {
+        if (!uid.isNullOrBlank()) {
             CoroutineScope(Dispatchers.IO).launch {
                 runCatching {
-                    Log.d(TAG, "INSERTing new cart_item to Supabase: id=${newItem.id}, service_id=${newItem.serviceId}")
+                    Log.d(TAG, "INSERTing new cart_item to Supabase: id=${newItem.id}, user_id=$uid, service_id=${newItem.serviceId}")
                     val body = buildJsonObject {
                         put("id", newItem.id)
                         put("user_id", uid)
@@ -271,10 +299,10 @@ object SupabaseCartRepository : CartRepository {
         }
 
         val uid = myUserId()
-        if (uid != null) {
+        if (!uid.isNullOrBlank()) {
             CoroutineScope(Dispatchers.IO).launch {
                 runCatching {
-                    Log.d(TAG, "UPDATEing cart_items in Supabase for item.id=${targetItem.id}")
+                    Log.d(TAG, "UPDATEing cart_items in Supabase for item.id=${targetItem.id}, user_id=$uid")
                     val updateBody = buildJsonObject {
                         put("location", newItem.location)
                         put("booking_date", toPostgresDate(newItem.date))
@@ -293,6 +321,8 @@ object SupabaseCartRepository : CartRepository {
                     Log.e(TAG, "Gagal UPDATE cart_items Supabase: ${e.message}", e)
                 }
             }
+        } else {
+            Log.e(TAG, "updateItem GAGAL: User ID null / belum login!")
         }
 
         return true
@@ -307,7 +337,7 @@ object SupabaseCartRepository : CartRepository {
         _cartItems.value = currentItems.filterNot { it.id == removedItem.id }
 
         val uid = myUserId()
-        if (uid != null) {
+        if (!uid.isNullOrBlank()) {
             CoroutineScope(Dispatchers.IO).launch {
                 runCatching {
                     Log.d(TAG, "Deleting item from cart_items in Supabase: id=${removedItem.id}")
@@ -332,7 +362,7 @@ object SupabaseCartRepository : CartRepository {
         _cartItems.value = currentItems.toMutableList().apply { add(restoreIndex, item) }
 
         val uid = myUserId()
-        if (uid != null) {
+        if (!uid.isNullOrBlank()) {
             CoroutineScope(Dispatchers.IO).launch {
                 runCatching {
                     val body = buildJsonObject {
@@ -353,11 +383,14 @@ object SupabaseCartRepository : CartRepository {
     }
 
     override fun addService(service: Service): Boolean {
-        val uid = myUserId() ?: "anon"
+        val uid = myUserId()
+        if (uid.isNullOrBlank()) {
+            Log.e(TAG, "addService GAGAL: User ID null / belum login!")
+        }
         val newItem = CartItem(
             id = UUID.randomUUID().toString(),
             serviceId = service.id,
-            userId = uid,
+            userId = uid ?: "",
             serviceName = service.title,
             category = service.category,
             providerName = service.providerName,
@@ -365,7 +398,7 @@ object SupabaseCartRepository : CartRepository {
             imageUrl = service.imageUrl,
             location = "Area Kampus UB",
             date = getTodayFormattedDate(),
-            time = "12.00 WIB",
+            time = getCurrentFormattedTime(),
             note = "",
             quantity = 1,
             isSelected = true
@@ -373,7 +406,7 @@ object SupabaseCartRepository : CartRepository {
 
         _cartItems.update { it + newItem }
 
-        if (uid != "anon") {
+        if (!uid.isNullOrBlank()) {
             CoroutineScope(Dispatchers.IO).launch {
                 runCatching {
                     Log.d(TAG, "INSERTing new item to cart_items in Supabase: uid=$uid, service_id=${service.id}")
@@ -407,7 +440,7 @@ object SupabaseCartRepository : CartRepository {
         _cartItems.update { items ->
             items.map { item ->
                 val selected = (item.id == itemId || item.serviceId == itemId)
-                if (uid != null) {
+                if (!uid.isNullOrBlank()) {
                     CoroutineScope(Dispatchers.IO).launch {
                         runCatching {
                             db.from("cart_items").update(buildJsonObject { put("is_selected", selected) }) {
@@ -430,7 +463,7 @@ object SupabaseCartRepository : CartRepository {
 
         _cartItems.update { items -> items.filterNot { it.isSelected } }
 
-        if (uid != null && selected.isNotEmpty()) {
+        if (!uid.isNullOrBlank() && selected.isNotEmpty()) {
             CoroutineScope(Dispatchers.IO).launch {
                 selected.forEach { item ->
                     runCatching {
@@ -501,6 +534,10 @@ object SupabaseCartRepository : CartRepository {
             Log.d(TAG, "RPC process_checkout berhasil!")
 
             AuthRepository.refreshProfile()
+
+            if (directServiceItem == null) {
+                removeSelectedItemsFromDb(uid, selectedItems)
+            }
 
             Result.success(Unit)
         } catch (e: Exception) {

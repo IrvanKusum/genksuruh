@@ -38,6 +38,10 @@ object SupabaseTrackingRepository : TrackingRepository {
             ?: AuthRepository.account.value?.id
     }
 
+    fun refreshOrders() {
+        triggerRefresh()
+    }
+
     private fun triggerRefresh() {
         refreshTrigger.value = System.currentTimeMillis()
     }
