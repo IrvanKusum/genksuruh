@@ -1,5 +1,6 @@
 package com.example.genksuruh.feature.tracking
 
+import android.util.Log
 import com.example.genksuruh.core.auth.AuthRepository
 import com.example.genksuruh.core.network.SupabaseClient
 import com.example.genksuruh.feature.cart.CartItem
@@ -50,31 +51,22 @@ object SupabaseTrackingRepository : TrackingRepository {
     private suspend fun fetchOrdersFromSupabase(role: UserRole, tab: OrderTab): List<Order> {
         val userId = currentUserId()
         return try {
-            val remoteOrders = client.postgrest
+            client.postgrest
                 .from("orders")
                 .select {
                     filter {
-                        if (!userId.isNullOrBlank()) {
-                            if (role == UserRole.USER) {
-                                eq("user_id", userId)
-                            } else {
-                                eq("provider_id", userId)
-                            }
+                        // User: hanya pesanan miliknya.
+                        // Admin/Penyedia: semua pesanan yang diizinkan RLS (provider_id = dia atau role ADMIN).
+                        if (role == UserRole.USER && !userId.isNullOrBlank()) {
+                            eq("user_id", userId)
                         }
                     }
                 }
                 .decodeList<Order>()
-
-            val filtered = remoteOrders.filter { tab.accepts(it.status) }
-            if (filtered.isNotEmpty()) {
-                filtered
-            } else if (remoteOrders.isNotEmpty()) {
-                emptyList()
-            } else {
-                FakeTrackingRepository.getOrdersForRoleAndTab(role, tab)
-            }
-        } catch (_: Exception) {
-            FakeTrackingRepository.getOrdersForRoleAndTab(role, tab)
+                .filter { tab.accepts(it.status) }
+        } catch (e: Exception) {
+            Log.e("SupabaseTrackingRepo", "Gagal memuat orders: ${e.message}", e)
+            emptyList()
         }
     }
 
@@ -85,57 +77,38 @@ object SupabaseTrackingRepository : TrackingRepository {
     }
 
     private suspend fun fetchOrderDetailFromSupabase(orderId: String): OrderDetail? {
-        try {
+        return try {
             val order = client.postgrest
                 .from("orders")
-                .select {
-                    filter {
-                        eq("id", orderId)
-                    }
-                }
-                .decodeSingleOrNull<Order>()
-                ?: FakeTrackingRepository.findOrder(orderId)
+                .select { filter { eq("id", orderId) } }
+                .decodeSingleOrNull<Order>() ?: return null
 
-            if (order == null) return null
-
-            val historyRecords = try {
+            val history = try {
                 client.postgrest
                     .from("order_status_history")
-                    .select {
-                        filter {
-                            eq("order_id", orderId)
-                        }
-                    }
+                    .select { filter { eq("order_id", orderId) } }
                     .decodeList<StatusHistory>()
-            } catch (_: Exception) {
+                    .sortedBy { it.createdAt ?: "" }
+                    .map { h ->
+                        if (h.timeText.isBlank() && !h.createdAt.isNullOrBlank())
+                            h.copy(timeText = formatTimestamp(h.createdAt)) else h
+                    }
+            } catch (e: Exception) {
+                Log.e("SupabaseTrackingRepo", "Gagal memuat riwayat status: ${e.message}", e)
                 emptyList()
             }
 
-            val finalHistory = if (historyRecords.isNotEmpty()) {
-                historyRecords.map { h ->
-                    if (h.timeText.isBlank() && !h.createdAt.isNullOrBlank()) {
-                        h.copy(timeText = formatTimestamp(h.createdAt))
-                    } else {
-                        h
-                    }
-                }
-            } else {
-                FakeTrackingRepository.getHistoriesForOrder(orderId)
-            }
-
-            return OrderDetail(order, finalHistory)
-        } catch (_: Exception) {
-            val fakeOrder = FakeTrackingRepository.findOrder(orderId) ?: return null
-            val fakeHistory = FakeTrackingRepository.getHistoriesForOrder(orderId)
-            return OrderDetail(fakeOrder, fakeHistory)
+            OrderDetail(order, history)
+        } catch (e: Exception) {
+            Log.e("SupabaseTrackingRepo", "Gagal memuat detail order: ${e.message}", e)
+            null
         }
     }
 
     override suspend fun updateStatus(orderId: String, newStatus: OrderStatus, note: String?) {
         withContext(Dispatchers.IO) {
             try {
-                // PENTING: Hanya meng-update tabel `orders`.
-                // Database memiliki trigger `on_order_status_changed` yang otomatis mencatat perubahan ke `order_status_history`.
+                // Trigger database mencatat perubahan ke order_status_history.
                 client.postgrest
                     .from("orders")
                     .update(
@@ -143,15 +116,10 @@ object SupabaseTrackingRepository : TrackingRepository {
                             status = newStatus,
                             progressPercent = if (newStatus == OrderStatus.SELESAI) 100 else null,
                         )
-                    ) {
-                        filter {
-                            eq("id", orderId)
-                        }
-                    }
-            } catch (_: Exception) {
+                    ) { filter { eq("id", orderId) } }
+            } catch (e: Exception) {
+                Log.e("SupabaseTrackingRepo", "Gagal update status: ${e.message}", e)
             }
-
-            FakeTrackingRepository.updateStatus(orderId, newStatus, note)
             triggerRefresh()
         }
     }
@@ -159,23 +127,14 @@ object SupabaseTrackingRepository : TrackingRepository {
     override suspend fun cancelOrder(orderId: String) {
         withContext(Dispatchers.IO) {
             try {
-                // PENTING: Hanya meng-update tabel `orders`.
-                // Database memiliki trigger `on_order_status_changed` yang otomatis mencatat perubahan ke `order_status_history`.
                 client.postgrest
                     .from("orders")
-                    .update(
-                        OrderStatusUpdateDto(
-                            status = OrderStatus.DIBATALKAN,
-                        )
-                    ) {
-                        filter {
-                            eq("id", orderId)
-                        }
+                    .update(OrderStatusUpdateDto(status = OrderStatus.DIBATALKAN)) {
+                        filter { eq("id", orderId) }
                     }
-            } catch (_: Exception) {
+            } catch (e: Exception) {
+                Log.e("SupabaseTrackingRepo", "Gagal membatalkan order: ${e.message}", e)
             }
-
-            FakeTrackingRepository.cancelOrder(orderId)
             triggerRefresh()
         }
     }
@@ -228,7 +187,6 @@ object SupabaseTrackingRepository : TrackingRepository {
             } catch (_: Exception) {
             }
 
-            FakeTrackingRepository.addOrdersDirectly(newOrders)
             triggerRefresh()
         }
     }

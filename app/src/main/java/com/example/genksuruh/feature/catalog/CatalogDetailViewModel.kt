@@ -35,7 +35,7 @@ class CatalogDetailViewModel @JvmOverloads constructor(
         if (service != null) {
             CatalogDetailUiState.Success(
                 service = service,
-                inCart = cartItems.any { it.id == serviceId }
+                inCart = cartItems.any { it.serviceId == serviceId }
             )
         } else CatalogDetailUiState.NotFound
     }.stateIn(
@@ -43,6 +43,11 @@ class CatalogDetailViewModel @JvmOverloads constructor(
         started = SharingStarted.WhileSubscribed(5_000),
         initialValue = CatalogDetailUiState.Loading
     )
+
+    /** Ambil ulang data jasa dari Supabase (rating & review_count terbaru). */
+    fun refresh() {
+        viewModelScope.launch { runCatching { repository.loadServices() } }
+    }
 
     fun toggleFavorite() {
         viewModelScope.launch { repository.toggleFavorite(serviceId) }

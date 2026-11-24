@@ -721,14 +721,40 @@ class CartViewModel(
 
             } else {
 
-                // Berhasil:
-                // Tandai voucher terpakai, catat pesanan ke Riwayat Pesanan, & potong saldo sekali.
+                // Berhasil: buat pesanan, potong saldo, dan pakai voucher
+                // sekaligus di server (RPC process_checkout).
+                val isDirect = latest.detailMode == CartDetailMode.DIRECT_ORDER &&
+                        latest.directOrderDraft != null
+
+                val result = repository.checkout(
+                    selectedItems = latest.selectedItems,
+                    voucherCode = latest.voucherCode.takeIf {
+                        latest.voucherStatus == VoucherStatus.APPLIED && it.isNotBlank()
+                    },
+                    discountAmount = latest.voucherDiscountAmount,
+                    totalPayable = latest.checkoutTotal,
+                    directServiceItem = if (isDirect) latest.directOrderDraft else null
+                )
+
+                if (result.isFailure) {
+                    val msg = result.exceptionOrNull()?.message
+                        ?.lineSequence()?.firstOrNull()?.takeIf { it.isNotBlank() }
+                        ?: "Terjadi kendala saat memproses pesanan. Silakan coba kembali."
+                    _screenState.update {
+                        it.copy(
+                            checkoutProcessStatus = CheckoutProcessStatus.FAILED,
+                            checkoutFailureMessage = msg,
+                            checkoutAttemptAt = attemptTime
+                        )
+                    }
+                    onResult(CheckoutResult.FAILED)
+                    return@launch
+                }
+
+                // Sinkronkan status voucher di tampilan promo.
                 latest.voucherClaimId
                     ?.takeIf { latest.voucherStatus == VoucherStatus.APPLIED }
                     ?.let { PromoModule.repository.markClaimUsed(it) }
-
-                SupabaseTrackingRepository.addOrdersFromCart(latest.selectedItems)
-                    FakeTrackingRepository.addOrdersFromCart(latest.selectedItems)
 
                 val payable = latest.checkoutTotal
 

@@ -219,7 +219,7 @@ object SupabaseCartRepository : CartRepository {
     override fun addCartItemWithDetails(item: CartItem): Boolean {
         val uid = myUserId() ?: "anon"
         val newItem = item.copy(
-            id = if (item.id.isBlank()) UUID.randomUUID().toString() else item.id,
+            id = UUID.randomUUID().toString(), // selalu ID baru, jangan pakai ID jasa
             userId = uid,
             quantity = 1,
             isSelected = true
@@ -501,10 +501,6 @@ object SupabaseCartRepository : CartRepository {
             Log.d(TAG, "RPC process_checkout berhasil!")
 
             AuthRepository.refreshProfile()
-
-            if (directServiceItem == null) {
-                removeSelectedItemsFromDb(uid, selectedItems)
-            }
 
             Result.success(Unit)
         } catch (e: Exception) {

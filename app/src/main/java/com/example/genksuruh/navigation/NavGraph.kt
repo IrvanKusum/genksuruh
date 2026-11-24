@@ -31,6 +31,7 @@ import com.example.genksuruh.feature.profile.EditProfileScreen
 import com.example.genksuruh.feature.profile.ProfileScreen
 import com.example.genksuruh.feature.promo.PromoScreen
 import com.example.genksuruh.feature.review.ReviewScreen
+import com.example.genksuruh.feature.review.ServiceReviewsScreen
 import com.example.genksuruh.feature.tracking.TrackingDetailScreen
 import com.example.genksuruh.feature.tracking.TrackingScreen
 import com.example.genksuruh.feature.tracking.TrackingUpdateScreen
@@ -129,8 +130,16 @@ fun AppNavGraph(
                 onBuyNow = { service ->
                     cartViewModel.prepareDirectOrder(service)
                     navController.navigate(Routes.CART_ITEM_DETAIL) { launchSingleTop = true }
-                }
+                },
+                onSeeReviews = { id -> navController.navigate(Routes.serviceReviews(id)) }
             )
+        }
+
+        composable(
+            route = Routes.SERVICE_REVIEWS,
+            arguments = listOf(navArgument("serviceId") { type = NavType.StringType })
+        ) {
+            ServiceReviewsScreen(onBack = { navController.popBackStack() })
         }
 
         composable(

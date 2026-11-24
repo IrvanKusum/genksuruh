@@ -49,9 +49,9 @@ enum class ServiceCategory { SERVIS_IT, EDUKASI, KREATIF, HOME_SERVICE, ANTAR_MA
 data class Order(
     val id: String,
     @SerialName("user_id")
-    val userId: String,
+    val userId: String? = null,
     @SerialName("provider_id")
-    val providerId: String,
+    val providerId: String? = null,
     @SerialName("service_id")
     val serviceId: String = "",
     val category: ServiceCategory = ServiceCategory.ANTAR_MAKANAN,

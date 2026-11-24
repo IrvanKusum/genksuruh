@@ -14,6 +14,7 @@ interface FavoriteRepository {
     fun remove(id: String): Int
     fun restore(id: String, index: Int)
     fun reset()
+    suspend fun reload() {}
 
     companion object : FavoriteRepository by SupabaseFavoriteRepository() {
         val defaultInstance: FavoriteRepository = this

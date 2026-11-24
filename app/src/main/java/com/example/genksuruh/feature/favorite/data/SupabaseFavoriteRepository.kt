@@ -3,7 +3,6 @@ package com.example.genksuruh.feature.favorite.data
 import android.util.Log
 import com.example.genksuruh.core.model.Service
 import com.example.genksuruh.core.network.SupabaseClient
-import com.example.genksuruh.feature.catalog.DummyServices
 import io.github.jan.supabase.auth.auth
 import io.github.jan.supabase.postgrest.postgrest
 import kotlinx.coroutines.CoroutineScope
@@ -47,8 +46,8 @@ class SupabaseFavoriteRepository(
             TEST_USER_ID
         }
 
-    private var allServices: List<Service> = DummyServices.list
-    private val favoriteIds = mutableListOf("svc-1", "svc-2", "svc-3", "svc-5")
+    private var allServices: List<Service> = emptyList()
+    private val favoriteIds = mutableListOf<String>()
 
     private val _favoritesFlow = MutableStateFlow<List<Service>>(emptyList())
     val favoritesFlow: StateFlow<List<Service>> = _favoritesFlow.asStateFlow()
@@ -59,36 +58,28 @@ class SupabaseFavoriteRepository(
     }
 
     fun loadData() {
-        scope.launch {
-            try {
-                // 1. Ambil katalog services dari Supabase
-                val servicesFromDb = db.from("services")
-                    .select()
-                    .decodeList<Service>()
-                if (servicesFromDb.isNotEmpty()) {
-                    allServices = servicesFromDb
-                }
-            } catch (e: Exception) {
-                Log.w(TAG, "Gagal memuat services dari Supabase, pakai dummy fallback: ${e.message}")
-            }
+        scope.launch { reload() }
+    }
 
-            try {
-                val uid = currentUserId
-                // 2. Ambil baris favorites milik user dari Supabase
-                val rows = db.from("favorites")
-                    .select {
-                        filter { eq("user_id", uid) }
-                    }
-                    .decodeList<FavoriteRow>()
+    /** Muat ulang katalog + favorit milik user yang sedang login dari Supabase. */
+    override suspend fun reload() {
+        try {
+            val servicesFromDb = db.from("services").select().decodeList<Service>()
+            if (servicesFromDb.isNotEmpty()) allServices = servicesFromDb
+        } catch (e: Exception) {
+            Log.w(TAG, "Gagal memuat services: ${e.message}")
+        }
 
-                if (rows.isNotEmpty()) {
-                    favoriteIds.clear()
-                    favoriteIds.addAll(rows.map { it.serviceId })
-                    refreshFavoritesFlow()
-                }
-            } catch (e: Exception) {
-                Log.w(TAG, "Gagal memuat favorites dari Supabase, fallback memori: ${e.message}")
-            }
+        try {
+            val uid = currentUserId
+            val rows = db.from("favorites")
+                .select { filter { eq("user_id", uid) } }
+                .decodeList<FavoriteRow>()
+            favoriteIds.clear()
+            favoriteIds.addAll(rows.map { it.serviceId })
+            refreshFavoritesFlow()
+        } catch (e: Exception) {
+            Log.w(TAG, "Gagal memuat favorites: ${e.message}")
         }
     }
 

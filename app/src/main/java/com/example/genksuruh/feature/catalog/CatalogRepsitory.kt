@@ -4,6 +4,7 @@ import android.util.Log
 import com.example.genksuruh.core.model.Service
 import com.example.genksuruh.core.network.StorageUploader
 import com.example.genksuruh.core.network.SupabaseClient
+import com.example.genksuruh.feature.favorite.data.FavoriteRepository
 import io.github.jan.supabase.postgrest.postgrest
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -45,9 +46,10 @@ object SupabaseCatalogRepository : CatalogRepository {
             }.getOrDefault(emptyMap())
 
             val rows = db.from("services").select().decodeList<ServiceRow>()
+            runCatching { FavoriteRepository.reload() }
             val list = rows.map { row: ServiceRow ->
                 val providerName = profileMap[row.providerId] ?: "Penyedia Jasa"
-                row.toService(providerName)
+                row.toService(providerName).copy(isFavorite = FavoriteRepository.isFavorite(row.id))
             }
             _services.value = list
         } catch (e: Exception) {
@@ -59,6 +61,8 @@ object SupabaseCatalogRepository : CatalogRepository {
     override fun getById(id: String): Service? = _services.value.find { it.id == id }
 
     override suspend fun toggleFavorite(id: String) {
+        // Simpan ke tabel favorites (Supabase) lewat FavoriteRepository
+        if (FavoriteRepository.isFavorite(id)) FavoriteRepository.remove(id) else FavoriteRepository.add(id)
         _services.update { list ->
             list.map { if (it.id == id) it.copy(isFavorite = !it.isFavorite) else it }
         }

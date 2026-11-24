@@ -45,6 +45,7 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -83,9 +84,13 @@ fun CatalogDetailScreen(
     onGoToCart: () -> Unit = {},
     isAdmin: Boolean = false,
     onEditClick: (String) -> Unit = {},
+    onSeeReviews: (String) -> Unit = {},
     viewModel: CatalogDetailViewModel = viewModel()
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+
+    // Muat ulang data jasa (rating & jumlah ulasan) setiap layar ini dibuka / dikembalikan
+    LaunchedEffect(Unit) { viewModel.refresh() }
     val snackbarHostState = remember { SnackbarHostState() }
 
     when (val s = state) {
@@ -119,7 +124,8 @@ fun CatalogDetailScreen(
             },
             isAdmin = isAdmin,
             onEditClick = { onEditClick(s.service.id)},
-            onBuyNowClick = { onBuyNow(s.service) }
+            onBuyNowClick = { onBuyNow(s.service) },
+            onSeeReviewsClick = { onSeeReviews(s.service.id) }
         )
     }
 }
@@ -136,7 +142,8 @@ fun CatalogDetailContent(
     onCartClick: () -> Unit,
     isAdmin: Boolean = false,
     onEditClick: () -> Unit = {},
-    onBuyNowClick: () -> Unit = {}
+    onBuyNowClick: () -> Unit = {},
+    onSeeReviewsClick: () -> Unit = {}
 ) {
     val scrollState = rememberScrollState() // state tampilan murni (posisi scroll)
 
@@ -207,7 +214,7 @@ fun CatalogDetailContent(
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.primary,
                                 fontWeight = FontWeight.Medium,
-                                modifier = Modifier.clickable { /* nanti: ke fitur Ulasan (Ahsana) */ }
+                                modifier = Modifier.clickable { onSeeReviewsClick() }
                             )
                         }
                         Spacer(Modifier.height(16.dp))

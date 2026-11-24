@@ -34,8 +34,10 @@ object Routes {
 
     // ===== Ulasan (Ahsana) =====
     const val REVIEW = "review/{orderId}"
+    const val SERVICE_REVIEWS = "service_reviews/{serviceId}"
 
     fun review(orderId: String) = "review/$orderId"
+    fun serviceReviews(serviceId: String) = "service_reviews/$serviceId"
 
     // ===== Favorit (Alushya) & Promo (Naja) =====
     const val FAVORITE_LIST = "favorite_list"
