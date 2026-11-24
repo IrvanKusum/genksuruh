@@ -16,6 +16,7 @@ import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
+import java.util.UUID
 
 private const val TAG = "SupabaseFavoriteRepo"
 
@@ -32,25 +33,28 @@ class SupabaseFavoriteRepository(
 ) : FavoriteRepository {
 
     companion object {
-        const val DEFAULT_USER_ID = "usr-mahasiswa"
+        const val TEST_USER_ID = "00000000-0000-0000-0000-000000000001"
     }
 
     private val db get() = SupabaseClient.client.postgrest
 
     val currentUserId: String
         get() = try {
-            SupabaseClient.client.auth.currentUserOrNull()?.id ?: DEFAULT_USER_ID
+            SupabaseClient.client.auth.currentUserOrNull()?.id
+                ?: com.example.genksuruh.core.auth.AuthRepository.account.value?.id
+                ?: TEST_USER_ID
         } catch (_: Exception) {
-            DEFAULT_USER_ID
+            TEST_USER_ID
         }
 
     private var allServices: List<Service> = DummyServices.list
-    private val favoriteIds = mutableListOf<String>()
+    private val favoriteIds = mutableListOf("svc-1", "svc-2", "svc-3", "svc-5")
 
     private val _favoritesFlow = MutableStateFlow<List<Service>>(emptyList())
     val favoritesFlow: StateFlow<List<Service>> = _favoritesFlow.asStateFlow()
 
     init {
+        refreshFavoritesFlow()
         loadData()
     }
 
@@ -69,16 +73,19 @@ class SupabaseFavoriteRepository(
             }
 
             try {
+                val uid = currentUserId
                 // 2. Ambil baris favorites milik user dari Supabase
                 val rows = db.from("favorites")
                     .select {
-                        filter { eq("user_id", currentUserId) }
+                        filter { eq("user_id", uid) }
                     }
                     .decodeList<FavoriteRow>()
 
-                favoriteIds.clear()
-                favoriteIds.addAll(rows.map { it.serviceId })
-                refreshFavoritesFlow()
+                if (rows.isNotEmpty()) {
+                    favoriteIds.clear()
+                    favoriteIds.addAll(rows.map { it.serviceId })
+                    refreshFavoritesFlow()
+                }
             } catch (e: Exception) {
                 Log.w(TAG, "Gagal memuat favorites dari Supabase, fallback memori: ${e.message}")
             }
@@ -121,8 +128,11 @@ class SupabaseFavoriteRepository(
             // Asynchronous insert ke Supabase
             scope.launch {
                 try {
+                    val uid = currentUserId
+                    val favId = UUID.randomUUID().toString()
                     db.from("favorites").insert(buildJsonObject {
-                        put("user_id", currentUserId)
+                        put("id", favId)
+                        put("user_id", uid)
                         put("service_id", id)
                     })
                     Log.d(TAG, "Berhasil simpan favorit $id ke Supabase")
@@ -144,9 +154,10 @@ class SupabaseFavoriteRepository(
             // Asynchronous delete dari Supabase
             scope.launch {
                 try {
+                    val uid = currentUserId
                     db.from("favorites").delete {
                         filter {
-                            eq("user_id", currentUserId)
+                            eq("user_id", uid)
                             eq("service_id", id)
                         }
                     }
@@ -166,8 +177,11 @@ class SupabaseFavoriteRepository(
 
         scope.launch {
             try {
+                val uid = currentUserId
+                val favId = UUID.randomUUID().toString()
                 db.from("favorites").insert(buildJsonObject {
-                    put("user_id", currentUserId)
+                    put("id", favId)
+                    put("user_id", uid)
                     put("service_id", id)
                 })
             } catch (e: Exception) {
@@ -181,4 +195,3 @@ class SupabaseFavoriteRepository(
         refreshFavoritesFlow()
     }
 }
-

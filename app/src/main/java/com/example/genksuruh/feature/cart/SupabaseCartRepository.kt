@@ -90,22 +90,19 @@ object SupabaseCartRepository : CartRepository {
 
     private var shouldFailNextLoad = false
 
-    private fun myUserId(): String? {
+    const val TEST_USER_ID = "00000000-0000-0000-0000-000000000001"
+
+    private fun myUserId(): String {
         val accountId = AuthRepository.account.value?.id
         val authUserId = runCatching { SupabaseClient.client.auth.currentUserOrNull()?.id }.getOrNull()
             ?: runCatching { SupabaseClient.client.auth.currentSessionOrNull()?.user?.id }.getOrNull()
-        val uid = accountId ?: authUserId
+        val uid = accountId ?: authUserId ?: TEST_USER_ID
         Log.d(TAG, "myUserId resolved: accountId=$accountId, authUserId=$authUserId -> uid=$uid")
         return uid
     }
 
     override suspend fun loadCart() {
         val uid = myUserId()
-        if (uid == null) {
-            Log.w(TAG, "loadCart: User belum login, keranjang dibersihkan.")
-            _cartItems.value = emptyList()
-            return
-        }
 
         if (shouldFailNextLoad) {
             shouldFailNextLoad = false

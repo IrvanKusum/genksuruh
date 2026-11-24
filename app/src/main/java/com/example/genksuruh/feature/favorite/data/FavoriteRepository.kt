@@ -15,8 +15,8 @@ interface FavoriteRepository {
     fun restore(id: String, index: Int)
     fun reset()
 
-    companion object : FavoriteRepository by defaultInstance {
-        val defaultInstance: FavoriteRepository by lazy { SupabaseFavoriteRepository() }
+    companion object : FavoriteRepository by SupabaseFavoriteRepository() {
+        val defaultInstance: FavoriteRepository = this
     }
 }
 

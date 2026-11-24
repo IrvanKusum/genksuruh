@@ -189,6 +189,78 @@ class CartViewModel(
         }
     }
 
+    fun prepareAddToCart(service: Service) {
+        val item = CartItem(
+            id = service.id,
+            serviceId = service.id,
+            serviceName = service.title,
+            category = service.category,
+            providerName = service.providerName,
+            price = service.price,
+            imageUrl = service.imageUrl,
+            location = "Area Kampus UB",
+            date = "17 November 2026",
+            time = "12.00 WIB",
+            note = "",
+            quantity = 1,
+            isSelected = true
+        )
+        _screenState.update {
+            it.copy(
+                detailMode = CartDetailMode.ADD_TO_CART,
+                editingItem = item,
+                directOrderDraft = null
+            )
+        }
+    }
+
+    fun prepareDirectOrder(service: Service) {
+        val item = CartItem(
+            id = service.id,
+            serviceId = service.id,
+            serviceName = service.title,
+            category = service.category,
+            providerName = service.providerName,
+            price = service.price,
+            imageUrl = service.imageUrl,
+            location = "Area Kampus UB",
+            date = "17 November 2026",
+            time = "12.00 WIB",
+            note = "",
+            quantity = 1,
+            isSelected = true
+        )
+        _screenState.update {
+            it.copy(
+                detailMode = CartDetailMode.DIRECT_ORDER,
+                editingItem = item,
+                directOrderDraft = item
+            )
+        }
+    }
+
+    fun confirmDirectOrder(onSuccess: () -> Unit) {
+        _screenState.update { state ->
+            state.copy(directOrderDraft = state.editingItem)
+        }
+        onSuccess()
+    }
+
+    fun confirmAddToCart(onSuccess: () -> Unit) {
+        val editing = _screenState.value.editingItem ?: return
+        repository.addCartItemWithDetails(editing)
+        _screenState.update {
+            it.copy(editingItem = null)
+        }
+        invalidateVoucherAfterCartChange()
+        onSuccess()
+    }
+
+    fun confirmEditCartItem(onSuccess: () -> Unit) {
+        saveEditingItem()
+        onSuccess()
+    }
+
     fun updateEditingLocation(location: String) {
         updateEditingItem { item ->
             item.copy(location = location)
@@ -727,6 +799,12 @@ class CartViewModel(
                 voucherClaimId = null,
                 voucherLabel = ""
             )
+        }
+    }
+
+    fun dismissNotificationMessage() {
+        _screenState.update {
+            it.copy(userNotificationMessage = null)
         }
     }
 }
